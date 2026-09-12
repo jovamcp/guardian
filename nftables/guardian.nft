@@ -9,12 +9,21 @@
 #
 # Validar SIEMPRE antes de aplicar (regla dura 7):  nft -c -f nftables/guardian.nft
 # Aplicar:                                          nft -f nftables/guardian.nft
+# Idempotente: se puede reaplicar sin duplicar reglas (add + flush de la tabla propia).
+# Persistencia: install.sh --with-nftables copia este archivo a /etc/guardian/nftables/
+# y lo incluye desde /etc/nftables.conf (servicio nftables habilitado).
 
-define LAN_NET = 10.10.10.0/24
-define AI_NET  = 10.20.0.0/24
-define WG_NET  = 10.8.0.0/24
+add table inet guardian
+flush table inet guardian
 
 table inet guardian {
+	# Redes de ejemplo (ajústalas a tu red). Definidas DENTRO de la tabla para que no
+	# choquen con las de docker-user.nft cuando ambos archivos se incluyen desde
+	# /etc/nftables.conf (los define de nivel superior comparten ámbito).
+	define LAN_NET = 10.10.10.0/24
+	define AI_NET  = 10.20.0.0/24
+	define WG_NET  = 10.8.0.0/24
+
 	chain input {
 		type filter hook input priority filter; policy drop;
 

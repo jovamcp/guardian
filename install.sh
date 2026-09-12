@@ -169,13 +169,36 @@ apply_nftables() {
 	# Persistencia: include desde /etc/nftables.conf y servicio habilitado.
 	local conf=/etc/nftables.conf line
 	[[ -f "${conf}" ]] || printf '#!/usr/sbin/nft -f\n' > "${conf}"
+	[[ -f "${conf}.guardian.bak" ]] || cp -a "${conf}" "${conf}.guardian.bak"
+	# El archivo por defecto de Debian/Ubuntu empieza con `flush ruleset`: al (re)iniciar
+	# nftables.service borraría también las tablas de Docker (NAT, FORWARD) y los contenedores
+	# se quedarían sin red. Nuestros archivos ya vacían solo lo suyo, así que lo desactivamos.
+	if grep -qE '^\s*flush ruleset' "${conf}"; then
+		sed -i -E 's|^(\s*)flush ruleset|\1# flush ruleset  # desactivado por Guardian: borraría las reglas de Docker|' "${conf}"
+		log "Desactivado 'flush ruleset' en ${conf} (copia en ${conf}.guardian.bak)."
+	fi
 	for line in "include \"${dst}/guardian.nft\"" "include \"${dst}/docker-user.nft\""; do
 		grep -qxF "${line}" "${conf}" || printf '%s\n' "${line}" >> "${conf}"
 	done
 	nft -c -f "${conf}"
-	systemctl enable --now nftables >/dev/null 2>&1 || systemctl enable nftables
-	log "Persistido en ${conf}; servicio nftables habilitado."
-	warn "No uses 'systemctl restart nftables' con Docker en marcha: su 'flush ruleset' borra las reglas de Docker. Reaplica con: make nft-apply"
+	# nftables.service de Debian/Ubuntu ejecuta `nft flush ruleset` en ExecStop, así que un
+	# `systemctl restart nftables` también dejaría a Docker sin red. Con este drop-in, parar el
+	# servicio solo retira la tabla de Guardian y deja DOCKER-USER limpia.
+	local dropin=/etc/systemd/system/nftables.service.d
+	install -d -m 0755 "${dropin}"
+	cat > "${dropin}/guardian.conf" <<'UNIT'
+# Instalado por Guardian (install.sh --with-nftables). No usa `flush ruleset`: borraría las
+# tablas de Docker. Al parar, solo se retiran las reglas propias.
+[Service]
+ExecStop=
+ExecStop=-/usr/sbin/nft delete table inet guardian
+ExecStop=-/usr/sbin/nft flush chain ip filter DOCKER-USER
+UNIT
+	systemctl daemon-reload
+	# Solo enable (sin --now): las reglas ya están aplicadas y arrancar el servicio ahora
+	# volvería a ejecutar el archivo completo.
+	systemctl enable nftables >/dev/null 2>&1
+	log "Persistido en ${conf}; nftables.service habilitado para el arranque (drop-in sin flush ruleset)."
 }
 
 main() {

@@ -1,0 +1,58 @@
+#!/usr/sbin/nft -f
+# Guardian v0.1 — restricciones de ORIGEN para los puertos publicados por Docker.
+#
+# ¿Por qué aquí y no en la cadena input de guardian.nft?
+# Docker publica puertos con DNAT en nat/PREROUTING y acepta el tráfico en la cadena
+# FORWARD de la tabla `ip filter` (backend iptables-nft). Ese tráfico NUNCA pasa por
+# la cadena input del host, así que una regla en `inet guardian input` no lo ve.
+# Docker reserva la cadena DOCKER-USER, evaluada la primera en FORWARD y que nunca
+# modifica tras crearla, precisamente para reglas del administrador.
+#
+# Este archivo es idempotente: vacía DOCKER-USER y la deja exactamente como Docker la
+# espera (nuestro salto + return). Solo cubre IPv4 porque Docker no publica en IPv6
+# salvo que se active `ip6tables` en daemon.json.
+#
+# Validar SIEMPRE antes de aplicar (regla dura 7):  nft -c -f nftables/docker-user.nft
+# Requiere que Docker esté instalado (crea `ip filter`); si no, se crea vacía y Docker
+# la reutiliza al arrancar.
+
+add table ip filter
+add chain ip filter DOCKER-USER
+add chain ip filter GUARDIAN-PUBLISH
+add chain ip filter GUARDIAN-PUBLISH-DNAT
+flush chain ip filter GUARDIAN-PUBLISH-DNAT
+flush chain ip filter GUARDIAN-PUBLISH
+flush chain ip filter DOCKER-USER
+
+table ip filter {
+	# Mismas redes que guardian.nft, con ámbito de tabla (ver comentario allí).
+	define LAN_NET   = 10.10.10.0/24
+	define AI_NET    = 10.20.0.0/24
+	define WG_NET    = 10.8.0.0/24
+	# Red Docker gd_front (ver compose): desde ella llega el tráfico de los clientes WireGuard,
+	# que wg-easy enmascara con la IP de su contenedor.
+	define FRONT_NET = 172.28.10.0/24
+
+	chain DOCKER-USER {
+		jump GUARDIAN-PUBLISH
+		return
+	}
+
+	chain GUARDIAN-PUBLISH {
+		# Solo nos interesa el tráfico que entra desde fuera hacia un puerto publicado
+		# (conntrack marcado como DNAT). El resto (contenedor→Internet, respuestas) sigue.
+		ct status dnat jump GUARDIAN-PUBLISH-DNAT
+		return
+	}
+
+	chain GUARDIAN-PUBLISH-DNAT {
+		ct state established,related return
+		# 443/tcp (Caddy): LAN, zona de IA, WireGuard y la propia red frontal.
+		tcp dport 443 ip saddr { $LAN_NET, $AI_NET, $WG_NET, $FRONT_NET } return
+		# 51820/udp (WireGuard): desde cualquier origen; es el único servicio expuesto a Internet.
+		udp dport 51820 return
+		# Cualquier otro origen o puerto publicado: registrar y descartar.
+		limit rate 10/minute burst 20 packets log prefix "gd-drop-fwd: " level info
+		drop
+	}
+}

@@ -62,7 +62,10 @@ services:
       DOMAIN: ${DOMAIN}
       TZ: ${TZ}
     ports:
-      - "443:443/tcp"
+      # Solo IPv4 a propósito: con "443:443" Docker también escucha en [::]:443 mediante
+      # docker-proxy (proceso del host), y ese tráfico entra por INPUT y no por FORWARD,
+      # así que las reglas de origen de DOCKER-USER no lo verían. IPv6 queda para v0.2.
+      - "0.0.0.0:443:443/tcp"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -203,7 +206,7 @@ services:
       # (nombre de host = WG_HOST del .env, puerto 51820). Alternativa sin asistente:
       # INIT_ENABLED=true + INIT_USERNAME/INIT_PASSWORD/INIT_HOST/INIT_PORT.
     ports:
-      - "51820:51820/udp"
+      - "0.0.0.0:51820:51820/udp"   # solo IPv4, mismo motivo que en caddy
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
