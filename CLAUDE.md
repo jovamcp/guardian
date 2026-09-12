@@ -7,10 +7,10 @@ nftables, sandbox de agentes con egreso por allowlist y auditoría. Diseño comp
 Documentación y comentarios en español; identificadores, archivos y commits en inglés.
 
 ## Fase actual
-**Fase 1 (semanas 1–2): base funcional — completada en VMs (Debian 12 / Ubuntu 24.04).**
-Caddy + Pocket ID + Open WebUI + Ollama + wg-easy, `install.sh`, nftables, `guardianctl init/status/doctor`.
-Nada de agentes, LiteLLM, egreso ni auditoría todavía. Prompt de trabajo: `docs/prompts/01-fase-1.md`.
-Siguiente: Fase 2 (LiteLLM, red `gd_agents`, egreso, primer sandbox).
+**Fase 2 (semanas 3–4): agentes — en curso.** LiteLLM con llaves virtuales, redes `gd_agents` y
+`gd_egress`, Squid + Blocky con allowlist por agente, sandbox (seccomp, AppArmor, runner) y vault
+con age. Plan y criterios: `docs/prompts/02-fase-2.md`. La Fase 1 (base) está completa y probada
+en VMs (`docs/prompts/01-fase-1.md`). Nada de auditoría (Fase 3) todavía.
 
 ## Reglas duras (no negociables)
 1. Ollama nunca publica puertos en el host; solo existe en la red Docker `gd_ai`.

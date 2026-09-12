@@ -174,6 +174,20 @@ Gateway propio en Go (sustituye LiteLLM), multi-nodo, cloud burst controlado.
 
 ## 11. Decisiones abiertas
 
+### Tomadas durante la Fase 2
+
+- **`userns-remap` se pospone a v0.2.** Es global al daemon, recrea `/var/lib/docker` bajo otro
+  uid (desaparecen imágenes y volúmenes ya creados) y wg-easy necesita el userns del host. Los
+  agentes corren con uid/gid fijos no privilegiados (`10000:10000`), `cap-drop ALL`,
+  `no-new-privileges`, seccomp y AppArmor propios, sistema de archivos de solo lectura.
+- **La identidad de red de un agente es su IP fija en `gd_agents`.** Squid (allowlist de
+  `CONNECT` por `dstdomain`) y Blocky (grupo de cliente con DNS denegado por defecto) filtran
+  por IP de origen. `guardianctl` asigna la IP a partir del manifiesto y renderiza ambas
+  configuraciones (`policy render egress`).
+- **LiteLLM con Postgres** (`gd-litellm-db`, solo en `gd_ai`): las llaves virtuales lo exigen.
+
+### Abiertas
+
 - wg-easy vs Tailscale como opción por defecto de acceso remoto.
 - LiteLLM (Python, pesado) vs gateway propio desde v0.2.
 - Pocket ID vs Authelia si hace falta LDAP o políticas por grupo más finas.
