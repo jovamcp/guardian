@@ -7,9 +7,9 @@ nftables, sandbox de agentes con egreso por allowlist y auditoría. Diseño comp
 Documentación y comentarios en español; identificadores, archivos y commits en inglés.
 
 ## Fase actual
-**Fases 1 y 2 completadas y probadas en VMs.** Siguiente: **Fase 3 (semanas 5–6): auditoría y
-alertas** (Vector → Loki → Grafana, alertas a ntfy; `schedule.cron` de los agentes). Planes y
-criterios: `docs/prompts/01-fase-1.md`, `docs/prompts/02-fase-2.md`. Guía de agentes: `docs/agentes.md`.
+**Fase 3 (semanas 5–6): auditoría y alertas — en curso.** Vector → Loki → Grafana (`logs.<DOMAIN>`,
+OIDC), alertas a ntfy, `schedule.cron` con timers de systemd. Plan: `docs/prompts/03-fase-3.md`.
+Fases 1 y 2 completas y probadas en VMs (`docs/prompts/01-fase-1.md`, `02-fase-2.md`).
 
 ## Reglas duras (no negociables)
 1. Ollama nunca publica puertos en el host; solo existe en la red Docker `gd_ai`.

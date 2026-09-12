@@ -186,6 +186,16 @@ Gateway propio en Go (sustituye LiteLLM), multi-nodo, cloud burst controlado.
   configuraciones (`policy render egress`).
 - **LiteLLM con Postgres** (`gd-litellm-db`, solo en `gd_ai`): las llaves virtuales lo exigen.
 
+### Tomadas durante la Fase 3
+
+- **Vector lee los logs a través de un `docker-socket-proxy` de solo lectura** en la red interna
+  `gd_audit`, nunca con el socket montado: un compromiso del recolector no da control del daemon.
+- **Descartes de nftables por `journald`** (montaje de solo lectura), sin rsyslog.
+- **Loki monolítico en disco** con retención por compactor (`audit.retention_days`).
+- **Grafana en `logs.<DOMAIN>` con OIDC de Pocket ID** y todo provisionado desde el repo.
+- **Alertas por webhook directo a ntfy** (`?template=grafana`), sin servicio intermedio.
+- **`schedule.cron` → timers de systemd** generados por `guardianctl agent schedule`.
+
 ### Abiertas
 
 - wg-easy vs Tailscale como opción por defecto de acceso remoto.
