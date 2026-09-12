@@ -53,6 +53,14 @@ def main() -> int:
     except OSError as e:
         print("[ok] sin salida directa:", type(e).__name__)
 
+    # 5) Secreto del vault: archivo 0400, nunca variable de entorno.
+    tok_file = os.environ.get("GITHUB_TOKEN_FILE", "")
+    if tok_file and os.path.exists(tok_file):
+        mode = oct(os.stat(tok_file).st_mode & 0o777)
+        print(f"[ok] secreto github_token: {len(open(tok_file).read())} bytes, modo {mode}, en entorno: {'GITHUB_TOKEN' in os.environ}")
+    else:
+        print("[fail] falta el secreto github_token"); ok = False
+
     print("uid:", os.getuid(), "read-only:", not os.access("/", os.W_OK), "docker.sock:", os.path.exists("/var/run/docker.sock"))
     return 0 if ok else 1
 

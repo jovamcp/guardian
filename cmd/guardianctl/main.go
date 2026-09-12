@@ -51,8 +51,7 @@ func main() {
 	case "agent":
 		os.Exit(cmdAgent(os.Args[2:]))
 	case "secret":
-		fmt.Fprintf(os.Stderr, "guardianctl %s: pendiente (se implementa en fases posteriores)\n", os.Args[1])
-		os.Exit(1)
+		os.Exit(cmdSecret(os.Args[2:]))
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -75,7 +74,8 @@ func usage() {
   policy    policy render egress   genera compose/squid/agents.conf y compose/blocky/config.yml
                                    a partir de agents/*.yaml (allowlist por agente)
   agent     agent run <nombre|manifiesto.yaml> [--dry-run]   lanza un agente en el sandbox
-  secret    pendiente`)
+  secret    vault cifrado con age: secret init | set <ref> | get <ref> | list | rm <ref>
+            (los manifiestos referencian secretos como vault:<ref>)`)
 }
 
 // repoRoot localiza la raíz del repo: directorio actual o el del binario (bin/..).

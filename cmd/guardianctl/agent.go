@@ -270,7 +270,5 @@ func shellJoin(args []string) string {
 	return strings.Join(out, " ")
 }
 
-// vaultGet se implementa en la tarea 5 (age). Hasta entonces, cualquier referencia vault: falla.
-var vaultGet = func(root, ref string) (string, error) {
-	return "", fmt.Errorf("vault:%s → el vault llega en la tarea 5 de la Fase 2", ref)
-}
+// vaultGet descifra una referencia vault:<ref> (vault.go).
+func vaultGet(root, ref string) (string, error) { return vaultRead(root, ref) }

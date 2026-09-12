@@ -16,7 +16,12 @@ egress:
   allow:
     - api.github.com
 
-services: {}
+# Secreto de ejemplo: créalo antes con  echo "dummy-token" | sudo guardianctl secret set hello-agent/github_token
+# Llega al contenedor como /run/guardian/secrets/github_token (0400) y GITHUB_TOKEN_FILE apunta a él.
+services:
+  github:
+    url: https://api.github.com
+    token: vault:hello-agent/github_token
 
 resources:
   cpus: "1"
