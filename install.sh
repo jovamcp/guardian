@@ -96,6 +96,11 @@ prepare_env() {
 		chmod 0600 "${ENV_FILE}"
 		log "${ENV_FILE} ya existe; conservo su contenido."
 	fi
+	# El .env pertenece al usuario que invocó sudo (si existe) para que pueda editarlo;
+	# sigue siendo 0600. Los comandos de Docker se ejecutan con sudo (Docker rootful).
+	if [[ -n "${SUDO_UID:-}" && -n "${SUDO_GID:-}" ]]; then
+		chown "${SUDO_UID}:${SUDO_GID}" "${ENV_FILE}"
+	fi
 	command -v openssl >/dev/null 2>&1 || apt-get install -y -qq openssl >/dev/null
 	gen_secret_if_empty WEBUI_SECRET_KEY "openssl rand -hex 32"
 	gen_secret_if_empty POCKET_ID_ENCRYPTION_KEY "openssl rand -base64 32"
@@ -147,11 +152,30 @@ start_stack() {
 apply_nftables() {
 	[[ "${WITH_NFTABLES}" -eq 1 ]] || { log "nftables omitido (usa --with-nftables para aplicarlo)."; return; }
 	command -v nft >/dev/null 2>&1 || apt-get install -y -qq nftables >/dev/null
-	local ruleset="${REPO_DIR}/nftables/guardian.nft"
-	log "Validando ${ruleset} (nft -c)…"
-	nft -c -f "${ruleset}"            # regla dura 7: nunca aplicar sin validar
-	nft -f "${ruleset}"
-	log "Ruleset aplicado (tabla inet guardian). Persistencia: Fase 1, tarea 4."
+	local dst=/etc/guardian/nftables
+	install -d -m 0755 "${dst}"
+	install -m 0644 "${REPO_DIR}/nftables/guardian.nft" "${dst}/guardian.nft"
+	install -m 0644 "${REPO_DIR}/nftables/docker-user.nft" "${dst}/docker-user.nft"
+
+	# Regla dura 7: nunca aplicar sin validar. Se valida el conjunto que quedará persistido.
+	log "Validando rulesets (nft -c)…"
+	nft -c -f "${dst}/guardian.nft"
+	nft -c -f "${dst}/docker-user.nft"
+	log "Aplicando tabla inet guardian (host: SSH de rescate, ICMP, log de descartes)…"
+	nft -f "${dst}/guardian.nft"
+	log "Aplicando DOCKER-USER (origen permitido para 443 y 51820)…"
+	nft -f "${dst}/docker-user.nft"
+
+	# Persistencia: include desde /etc/nftables.conf y servicio habilitado.
+	local conf=/etc/nftables.conf line
+	[[ -f "${conf}" ]] || printf '#!/usr/sbin/nft -f\n' > "${conf}"
+	for line in "include \"${dst}/guardian.nft\"" "include \"${dst}/docker-user.nft\""; do
+		grep -qxF "${line}" "${conf}" || printf '%s\n' "${line}" >> "${conf}"
+	done
+	nft -c -f "${conf}"
+	systemctl enable --now nftables >/dev/null 2>&1 || systemctl enable nftables
+	log "Persistido en ${conf}; servicio nftables habilitado."
+	warn "No uses 'systemctl restart nftables' con Docker en marcha: su 'flush ruleset' borra las reglas de Docker. Reaplica con: make nft-apply"
 }
 
 main() {

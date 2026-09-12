@@ -1,6 +1,8 @@
-COMPOSE := docker compose --env-file compose/.env -f compose/docker-compose.yml
+# Docker es rootful (ver CLAUDE.md): si no somos root, anteponemos sudo.
+SUDO    := $(if $(filter 0,$(shell id -u)),,sudo)
+COMPOSE := $(SUDO) docker compose --env-file compose/.env -f compose/docker-compose.yml
 
-.PHONY: up down restart ps logs build doctor status nft-check
+.PHONY: up down restart ps logs build doctor status nft-check nft-apply
 
 up:
 	$(COMPOSE) up -d
@@ -23,11 +25,17 @@ build:
 	go build -o bin/guardianctl ./cmd/guardianctl
 
 doctor: build
-	sudo ./bin/guardianctl doctor
+	$(SUDO) ./bin/guardianctl doctor
 
 status: build
-	./bin/guardianctl status
+	$(SUDO) ./bin/guardianctl status
 
-## nft-check: valida la sintaxis del ruleset sin aplicarlo (regla dura 7).
+## nft-check: valida la sintaxis de los rulesets sin aplicarlos (regla dura 7).
 nft-check:
-	sudo nft -c -f nftables/guardian.nft
+	$(SUDO) nft -c -f nftables/guardian.nft
+	$(SUDO) nft -c -f nftables/docker-user.nft
+
+## nft-apply: valida y reaplica (idempotente). No usa systemctl restart nftables.
+nft-apply: nft-check
+	$(SUDO) nft -f nftables/guardian.nft
+	$(SUDO) nft -f nftables/docker-user.nft
