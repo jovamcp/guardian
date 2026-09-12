@@ -13,9 +13,12 @@ No sustituye el runtime ni el chat: los protege. Diseño completo en [`DESIGN.md
 
 ## Estado
 
-**v0.1 en desarrollo, Fase 1 (base).** Funciona: Caddy con TLS interno, Pocket ID, Open WebUI con
-login OIDC, Ollama aislado en su red Docker, wg-easy, `install.sh`, nftables y `guardianctl doctor`.
-Aún no: agentes, gateway LiteLLM, proxy de egreso, auditoría.
+**v0.1 en desarrollo, Fase 1 (base) completada y probada en VMs de Debian 12 y Ubuntu 24.04.**
+Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC y sin formulario
+de contraseña, Ollama aislado en su red Docker, wg-easy 15, `install.sh` idempotente, nftables
+(host + `DOCKER-USER`) con persistencia y `guardianctl init/status/doctor`.
+Aún no: agentes, gateway LiteLLM, proxy de egreso, auditoría. Pendiente de prueba en hardware
+real x86-64 y desde un móvil fuera de casa.
 
 ## Instalación rápida
 
@@ -38,10 +41,16 @@ y levanta la plataforma. Solo se publican **443/tcp** y **51820/udp**.
 2. **Instala la CA** `compose/certs/root.crt` en cada dispositivo (ver `docs/instalacion.md`).
 3. **Pocket ID**: entra en `https://id.<DOMAIN>/setup`, crea el usuario admin con passkey y un
    cliente OIDC llamado `open-webui` con callback `https://<DOMAIN>/oauth/oidc/callback`.
+   En *Allowed User Groups* pulsa **Unrestrict** (el cliente nace restringido) y en
+   *Credentials* crea un secreto.
 4. Copia el **ID y el secreto** del cliente a `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` en `compose/.env`.
-5. `make restart` y entra en `https://<DOMAIN>` con "Iniciar sesión con Pocket ID".
+5. `sudo make restart` y entra en `https://<DOMAIN>` con **Continue with Pocket ID**. El primer
+   usuario es administrador.
 6. **WireGuard**: `https://vpn.<DOMAIN>` → asistente inicial → añade tu móvil con el QR.
-7. `make doctor` debe estar todo en verde.
+7. `sudo make doctor` debe estar todo en verde.
+
+Guía paso a paso (DNS local, instalar la CA en iOS/Android/Windows/macOS, WireGuard):
+[`docs/instalacion.md`](docs/instalacion.md).
 
 ## Estructura
 

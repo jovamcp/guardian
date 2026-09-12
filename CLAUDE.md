@@ -7,9 +7,10 @@ nftables, sandbox de agentes con egreso por allowlist y auditoría. Diseño comp
 Documentación y comentarios en español; identificadores, archivos y commits en inglés.
 
 ## Fase actual
-**Fase 1 (semanas 1–2): base funcional.** Caddy + Pocket ID + Open WebUI + Ollama + wg-easy,
-`install.sh`, nftables, `guardianctl status/doctor`. Nada de agentes, LiteLLM, egreso ni auditoría todavía.
-Prompt de trabajo: `docs/prompts/01-fase-1.md`.
+**Fase 1 (semanas 1–2): base funcional — completada en VMs (Debian 12 / Ubuntu 24.04).**
+Caddy + Pocket ID + Open WebUI + Ollama + wg-easy, `install.sh`, nftables, `guardianctl init/status/doctor`.
+Nada de agentes, LiteLLM, egreso ni auditoría todavía. Prompt de trabajo: `docs/prompts/01-fase-1.md`.
+Siguiente: Fase 2 (LiteLLM, red `gd_agents`, egreso, primer sandbox).
 
 ## Reglas duras (no negociables)
 1. Ollama nunca publica puertos en el host; solo existe en la red Docker `gd_ai`.
@@ -29,8 +30,17 @@ Prompt de trabajo: `docs/prompts/01-fase-1.md`.
   Dominio real con DNS challenge en v0.2.
 - `guardianctl` en Go, solo biblioteca estándar.
 - Redes de ejemplo: LAN 10.10.10.0/24; zona de IA VLAN 20, 10.20.0.0/24, host 10.20.0.10; WireGuard 10.8.0.0/24.
-- Versiones verificadas (2026-09): Pocket ID v2 (exige `ENCRYPTION_KEY`), Open WebUI `main`
-  (redirect URI `/oauth/oidc/callback`), wg-easy 15 (sin `WG_HOST`; asistente web o `INIT_*`).
+- Versiones verificadas (2026-09): Pocket ID v2.14 (exige `ENCRYPTION_KEY`; los clientes OIDC nacen
+  restringidos por grupo), Open WebUI `main`/0.11 (redirect URI `/oauth/oidc/callback`;
+  `ENABLE_LOGIN_FORM` y `ENABLE_SIGNUP` son PersistentConfig: solo se leen en el primer arranque),
+  wg-easy 15.4 (sin `WG_HOST`; asistente web o `INIT_*`).
+- nftables: `nftables.service` de Debian/Ubuntu hace `flush ruleset` en `ExecStop` y el
+  `/etc/nftables.conf` por defecto también; ambos borran las tablas de Docker. `install.sh` los
+  neutraliza (drop-in + comentario). Nunca uses `flush ruleset`; reaplica con `make nft-apply`.
+- Los clientes WireGuard llegan al host enmascarados con la IP de wg-easy (172.28.10.0/24) y
+  por INPUT (docker-proxy, hairpin): esa subred debe estar permitida en 443 en ambos archivos.
+- Pruebas en Apple Silicon (Lima/vz): Open WebUI muere con SIGILL en `cryptography`; usa
+  `OPENSSL_armcap=0` en un override fuera del repo. No afecta a x86-64.
 
 ## Convenciones
 - Un PR (o commit) por tarea; el mensaje explica qué cambió y con qué fuente se verificó.
