@@ -2,7 +2,7 @@
 SUDO    := $(if $(filter 0,$(shell id -u)),,sudo)
 COMPOSE := $(SUDO) docker compose --env-file compose/.env -f compose/docker-compose.yml
 
-.PHONY: up down restart ps logs build doctor status nft-check nft-apply
+.PHONY: up down restart reload-caddy ps logs build doctor status nft-check nft-apply
 
 up:
 	$(COMPOSE) up -d
@@ -10,10 +10,15 @@ up:
 down:
 	$(COMPOSE) down
 
-## restart: recrea open-webui para que relea el .env (OAUTH_*), y reinicia el resto.
+## restart: recrea open-webui para que relea el .env (OAUTH_*), reinicia el resto y recarga Caddy.
 restart:
 	$(COMPOSE) up -d --force-recreate open-webui
-	$(COMPOSE) restart caddy pocket-id wg-easy ollama
+	$(COMPOSE) restart pocket-id wg-easy ollama litellm
+	$(COMPOSE) exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+
+## reload-caddy: recarga el Caddyfile sin cortar conexiones.
+reload-caddy:
+	$(COMPOSE) exec -T caddy caddy reload --config /etc/caddy/Caddyfile
 
 ps:
 	$(COMPOSE) ps

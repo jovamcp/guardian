@@ -21,6 +21,11 @@
 #               (imagen :15, UI en 51821/tcp, WireGuard 51820/udp, sin WG_HOST: asistente web
 #               en el primer arranque o variables INIT_*; requiere /lib/modules:ro)
 #   - Caddy: https://caddyserver.com/docs/caddyfile/directives/tls (tls internal)
+#   - LiteLLM (Fase 2): https://docs.litellm.ai/docs/proxy/deploy (imagen fijada por versión,
+#                puerto 4000, --config, DATABASE_URL/LITELLM_MASTER_KEY/LITELLM_SALT_KEY,
+#                /health/liveliness y /health/readiness),
+#                https://docs.litellm.ai/docs/proxy/virtual_keys (llaves virtuales exigen Postgres),
+#                https://docs.litellm.ai/docs/providers/ollama (prefijo ollama_chat/)
 
 name: guardian
 
@@ -43,6 +48,20 @@ networks:
     ipam:
       config:
         - subnet: 172.28.20.0/24
+  # Agentes (Fase 2): red INTERNA, sin ruta por defecto ni NAT. Un agente solo ve lo que
+  # está conectado aquí: el gateway LiteLLM, el DNS (Blocky) y el proxy (Squid).
+  gd_agents:
+    name: gd_agents
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.28.30.0/24
+  # Egreso (Fase 2): la única salida a Internet de los agentes, a través de Squid y Blocky.
+  gd_egress:
+    name: gd_egress
+    ipam:
+      config:
+        - subnet: 172.28.40.0/24
 
 volumes:
   caddy_data:
@@ -51,6 +70,7 @@ volumes:
   open_webui_data:
   ollama_data:
   wg_easy_data:
+  litellm_db_data:
 
 services:
   caddy:
@@ -189,6 +209,61 @@ services:
     # devices:
     #   - /dev/kfd
     #   - /dev/dri
+
+  # ---------------------------------------------------------------- Fase 2: gateway LLM
+  litellm-db:
+    image: postgres:16-alpine
+    container_name: gd-litellm-db
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${LITELLM_DB_PASSWORD}
+      POSTGRES_DB: litellm
+      TZ: ${TZ}
+    volumes:
+      - litellm_db_data:/var/lib/postgresql/data
+    networks:
+      - gd_ai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  litellm:
+    # Versión fijada (regla dura 4; la doc de LiteLLM desaconseja tags móviles).
+    image: ghcr.io/berriai/litellm:v1.100.1
+    container_name: gd-litellm
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      litellm-db:
+        condition: service_healthy
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      TZ: ${TZ}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      # Cifra credenciales guardadas en la base de datos. Se fija una vez y no se cambia.
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
+      DATABASE_URL: postgresql://litellm:${LITELLM_DB_PASSWORD}@litellm-db:5432/litellm
+      # Los modelos vienen del archivo, no de la base de datos ni de la UI.
+      STORE_MODEL_IN_DB: "False"
+      LITELLM_LOG: INFO
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    networks:
+      gd_front: {}          # Caddy publica api.<DOMAIN>
+      gd_ai: {}             # Ollama y Postgres
+      gd_agents:            # los agentes llaman a http://litellm:4000 con su llave virtual
+        ipv4_address: 172.28.30.10
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
 
   wg-easy:
     image: ghcr.io/wg-easy/wg-easy:15

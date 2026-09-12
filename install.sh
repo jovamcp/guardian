@@ -88,6 +88,11 @@ gen_secret_if_empty() {
 	fi
 }
 
+ensure_env_var() {
+	# Añade VAR= al .env si falta (instalaciones anteriores a la variable).
+	grep -qE "^$1=" "${ENV_FILE}" || printf '%s=\n' "$1" >> "${ENV_FILE}"
+}
+
 prepare_env() {
 	if [[ ! -f "${ENV_FILE}" ]]; then
 		install -m 0600 "${REPO_DIR}/.env.example" "${ENV_FILE}"
@@ -104,6 +109,9 @@ prepare_env() {
 	command -v openssl >/dev/null 2>&1 || apt-get install -y -qq openssl >/dev/null
 	gen_secret_if_empty WEBUI_SECRET_KEY "openssl rand -hex 32"
 	gen_secret_if_empty POCKET_ID_ENCRYPTION_KEY "openssl rand -base64 32"
+	ensure_env_var LITELLM_MASTER_KEY; gen_secret_if_empty LITELLM_MASTER_KEY "echo sk-\$(openssl rand -hex 24)"
+	ensure_env_var LITELLM_SALT_KEY;  gen_secret_if_empty LITELLM_SALT_KEY "echo sk-\$(openssl rand -hex 24)"
+	ensure_env_var LITELLM_DB_PASSWORD; gen_secret_if_empty LITELLM_DB_PASSWORD "openssl rand -hex 24"
 
 	# shellcheck disable=SC1090
 	set -a; . "${ENV_FILE}"; set +a
@@ -146,6 +154,8 @@ start_stack() {
 	log "Levantando la plataforma…"
 	"${COMPOSE[@]}" pull --quiet
 	"${COMPOSE[@]}" up -d
+	# El Caddyfile va montado: si cambió, `up` no reinicia caddy. Recarga en caliente.
+	"${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || true
 	"${COMPOSE[@]}" ps
 }
 

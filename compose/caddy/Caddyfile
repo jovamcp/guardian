@@ -34,3 +34,10 @@ vpn.{$DOMAIN} {
 	import secure
 	reverse_proxy wg-easy:51821
 }
+
+# LiteLLM (API compatible con OpenAI para apps y agentes; llaves virtuales)
+api.{$DOMAIN} {
+	tls internal
+	import secure
+	reverse_proxy litellm:4000
+}

@@ -1,0 +1,26 @@
+# Configuración del gateway LiteLLM de Guardian.
+# Fuente: https://docs.litellm.ai/docs/providers/ollama (prefijo ollama_chat/ para /api/chat).
+#
+# Cada modelo que quieras ofrecer a apps y agentes se declara aquí con el MISMO nombre que
+# tiene en Ollama (`docker exec gd-ollama ollama list`). Las llaves virtuales se limitan a una
+# lista de estos nombres (`guardianctl key create --models ...`).
+model_list:
+  - model_name: qwen2.5:0.5b
+    litellm_params:
+      model: ollama_chat/qwen2.5:0.5b
+      api_base: http://ollama:11434
+  # - model_name: llama3.1:8b
+  #   litellm_params:
+  #     model: ollama_chat/llama3.1:8b
+  #     api_base: http://ollama:11434
+
+general_settings:
+  # La clave maestra viene del entorno (compose/.env). Solo guardianctl la usa.
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Sin llave válida no se responde a nada, tampoco a /models.
+  disable_master_key_return: true
+
+litellm_settings:
+  drop_params: true
+  # Sin telemetría saliente.
+  telemetry: false

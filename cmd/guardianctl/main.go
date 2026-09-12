@@ -5,11 +5,16 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,7 +44,9 @@ func main() {
 		fmt.Println("guardianctl", version)
 	case "init":
 		os.Exit(cmdInit())
-	case "policy", "agent", "key", "secret":
+	case "key":
+		os.Exit(cmdKey(os.Args[2:]))
+	case "policy", "agent", "secret":
 		fmt.Fprintf(os.Stderr, "guardianctl %s: pendiente (se implementa en fases posteriores)\n", os.Args[1])
 		os.Exit(1)
 	case "-h", "--help", "help":
@@ -58,7 +65,10 @@ func usage() {
   status    estado de los servicios (docker compose ps)
   doctor    comprobaciones de salud y seguridad (requiere root)
   version   versión
-  policy | agent | key | secret   pendientes`)
+  key       llaves virtuales del gateway LiteLLM:
+              key create --name <agente> --models m1,m2 [--budget USD] [--rpm N] [--duration 30d]
+              key list | key delete <sk-...>
+  policy | agent | secret   pendientes`)
 }
 
 // repoRoot localiza la raíz del repo: directorio actual o el del binario (bin/..).
@@ -340,4 +350,168 @@ Siguientes pasos:
   5. WireGuard: https://vpn.%s → asistente (host %s, puerto 51820) → QR para el móvil.
   6. Comprueba: make doctor
 `, domain, domain, domain, domain, domain, domain, wgHost)
+}
+
+// ---------------------------------------------------------------- key (LiteLLM)
+
+// apiClient devuelve un cliente HTTPS que habla con api.<DOMAIN> a través de Caddy en
+// 127.0.0.1:443, verificando con la CA interna. Es el mismo camino que usan las apps.
+func apiClient(root string) (*http.Client, string, error) {
+	domain := envValue(root, "DOMAIN")
+	if domain == "" {
+		return nil, "", errors.New("DOMAIN no definido en compose/.env")
+	}
+	pem, err := os.ReadFile(filepath.Join(root, "compose", "certs", "root.crt"))
+	if err != nil {
+		return nil, "", err
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, "", errors.New("compose/certs/root.crt no es un PEM válido")
+	}
+	host := "api." + domain
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: pool, ServerName: host, MinVersion: tls.VersionTLS12},
+		DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, network, "127.0.0.1:443")
+		},
+	}
+	return &http.Client{Transport: tr, Timeout: 30 * time.Second}, "https://" + host, nil
+}
+
+func litellmCall(root, method, path string, body any) (int, map[string]any, error) {
+	client, base, err := apiClient(root)
+	if err != nil {
+		return 0, nil, err
+	}
+	master := envValue(root, "LITELLM_MASTER_KEY")
+	if master == "" {
+		return 0, nil, errors.New("LITELLM_MASTER_KEY no definido en compose/.env")
+	}
+	var rd io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		rd = bytes.NewReader(b)
+	}
+	req, err := http.NewRequest(method, base+path, rd)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+master)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	out := map[string]any{}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &out); err != nil {
+			out["raw"] = string(raw)
+		}
+	}
+	return resp.StatusCode, out, nil
+}
+
+func cmdKey(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "uso: guardianctl key create|list|delete …")
+		return 2
+	}
+	root := repoRoot()
+	switch args[0] {
+	case "create":
+		fs := flag.NewFlagSet("key create", flag.ContinueOnError)
+		name := fs.String("name", "", "nombre del agente o app (alias de la llave)")
+		models := fs.String("models", "", "modelos permitidos, separados por comas")
+		budget := fs.Float64("budget", 0, "presupuesto máximo en USD (0 = sin límite)")
+		rpm := fs.Int("rpm", 0, "peticiones por minuto (0 = sin límite)")
+		duration := fs.String("duration", "", "caducidad, p. ej. 30d (vacío = no caduca)")
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
+		if *name == "" || *models == "" {
+			fmt.Fprintln(os.Stderr, "key create: --name y --models son obligatorios")
+			return 2
+		}
+		body := map[string]any{
+			"key_alias": *name,
+			"models":    strings.Split(*models, ","),
+			"metadata":  map[string]any{"guardian_agent": *name},
+		}
+		if *budget > 0 {
+			body["max_budget"] = *budget
+		}
+		if *rpm > 0 {
+			body["rpm_limit"] = *rpm
+		}
+		if *duration != "" {
+			body["duration"] = *duration
+		}
+		code, out, err := litellmCall(root, http.MethodPost, "/key/generate", body)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "key create:", err)
+			return 1
+		}
+		if code != 200 {
+			fmt.Fprintf(os.Stderr, "key create: HTTP %d: %v\n", code, out)
+			return 1
+		}
+		fmt.Printf("%s\n", out["key"])
+		fmt.Fprintf(os.Stderr, "llave creada para %s (modelos: %s). Guárdala: no se vuelve a mostrar.\n", *name, *models)
+		return 0
+	case "list":
+		code, out, err := litellmCall(root, http.MethodGet, "/key/list?return_full_object=true&size=100", nil)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "key list:", err)
+			return 1
+		}
+		if code != 200 {
+			fmt.Fprintf(os.Stderr, "key list: HTTP %d: %v\n", code, out)
+			return 1
+		}
+		keys, _ := out["keys"].([]any)
+		fmt.Printf("%-20s %-14s %-10s %s\n", "ALIAS", "TOKEN", "GASTO", "MODELOS")
+		for _, k := range keys {
+			m, _ := k.(map[string]any)
+			alias, _ := m["key_alias"].(string)
+			token, _ := m["token"].(string)
+			if len(token) > 12 {
+				token = token[:12] + "…"
+			}
+			spend, _ := m["spend"].(float64)
+			var models []string
+			if ms, ok := m["models"].([]any); ok {
+				for _, x := range ms {
+					models = append(models, fmt.Sprint(x))
+				}
+			}
+			fmt.Printf("%-20s %-14s %-10.4f %s\n", alias, token, spend, strings.Join(models, ","))
+		}
+		return 0
+	case "delete":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "uso: guardianctl key delete <sk-...|alias>")
+			return 2
+		}
+		body := map[string]any{"keys": []string{args[1]}}
+		if !strings.HasPrefix(args[1], "sk-") {
+			body = map[string]any{"key_aliases": []string{args[1]}}
+		}
+		code, out, err := litellmCall(root, http.MethodPost, "/key/delete", body)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "key delete:", err)
+			return 1
+		}
+		if code != 200 {
+			fmt.Fprintf(os.Stderr, "key delete: HTTP %d: %v\n", code, out)
+			return 1
+		}
+		fmt.Println("llave eliminada")
+		return 0
+	default:
+		fmt.Fprintln(os.Stderr, "key: subcomando desconocido:", args[0])
+		return 2
+	}
 }
