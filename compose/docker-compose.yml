@@ -113,20 +113,31 @@ services:
       WEBUI_URL: https://${DOMAIN}
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
       OLLAMA_BASE_URL: http://ollama:11434
-      # Registro solo vía OIDC.
+      # Registro solo vía OIDC. ENABLE_LOGIN_FORM oculta el formulario de contraseña.
+      # OJO: en Open WebUI ENABLE_SIGNUP y ENABLE_LOGIN_FORM son "PersistentConfig": el valor
+      # del entorno solo se lee en el PRIMER arranque y luego vive en la base de datos.
+      # Para forzar el .env en un arranque posterior: ENABLE_PERSISTENT_CONFIG=false.
       ENABLE_SIGNUP: "false"
+      ENABLE_LOGIN_FORM: ${ENABLE_LOGIN_FORM:-false}
+      ENABLE_PERSISTENT_CONFIG: ${ENABLE_PERSISTENT_CONFIG:-true}
       ENABLE_OAUTH_SIGNUP: "true"
       OAUTH_PROVIDER_NAME: Pocket ID
       OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
       OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
       OPENID_PROVIDER_URL: https://id.${DOMAIN}/.well-known/openid-configuration
       OAUTH_SCOPES: openid email profile
-      # Confianza en la CA interna de Caddy (exportada por install.sh / guardianctl init):
+      # Guardian protege IA local: sin conexión a api.openai.com por defecto (evita llamadas
+      # salientes en cada carga). Se puede activar en Admin → Ajustes → Conexiones.
+      ENABLE_OPENAI_API: "false"
+      # Confianza en la CA interna de Caddy SIN perder las CAs públicas: el `command` de abajo
+      # concatena el bundle del sistema con compose/certs/root.crt en /tmp/ca-bundle.crt.
       #  - SSL_CERT_FILE / REQUESTS_CA_BUNDLE: httpx/requests/authlib (intercambio de tokens).
       #  - AIOHTTP_CLIENT_SSL_CERT_FILE: aiohttp (descarga del documento OIDC discovery).
-      SSL_CERT_FILE: /certs/root.crt
-      REQUESTS_CA_BUNDLE: /certs/root.crt
-      AIOHTTP_CLIENT_SSL_CERT_FILE: /certs/root.crt
+      SSL_CERT_FILE: /tmp/ca-bundle.crt
+      REQUESTS_CA_BUNDLE: /tmp/ca-bundle.crt
+      AIOHTTP_CLIENT_SSL_CERT_FILE: /tmp/ca-bundle.crt
+    # La imagen arranca con `bash start.sh` en /app/backend (Dockerfile upstream).
+    command: ["bash", "-c", "cat /etc/ssl/certs/ca-certificates.crt /certs/root.crt > /tmp/ca-bundle.crt && exec bash start.sh"]
     extra_hosts:
       # El contenedor debe llegar a id.<DOMAIN> a través de Caddy (443 del host).
       - "id.${DOMAIN}:host-gateway"
