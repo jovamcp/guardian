@@ -20,9 +20,13 @@ table inet guardian {
 	# Redes de ejemplo (ajústalas a tu red). Definidas DENTRO de la tabla para que no
 	# choquen con las de docker-user.nft cuando ambos archivos se incluyen desde
 	# /etc/nftables.conf (los define de nivel superior comparten ámbito).
-	define LAN_NET = 10.10.10.0/24
-	define AI_NET  = 10.20.0.0/24
-	define WG_NET  = 10.8.0.0/24
+	define LAN_NET   = 10.10.10.0/24
+	define AI_NET    = 10.20.0.0/24
+	define WG_NET    = 10.8.0.0/24
+	# Red Docker gd_front (ver compose). Los clientes WireGuard salen de wg-easy enmascarados
+	# con la IP de su contenedor y, al ir a la IP del host, Docker no hace DNAT (hairpin) y el
+	# tráfico llega a INPUT vía docker-proxy. Sin esta red, la VPN no podría abrir el chat.
+	define FRONT_NET = 172.28.10.0/24
 
 	chain input {
 		type filter hook input priority filter; policy drop;
@@ -43,9 +47,10 @@ table inet guardian {
 		# No eliminar ni mover debajo de otra regla que pueda descartar antes.
 		ip saddr { $LAN_NET, $AI_NET } tcp dport 22 accept comment "rescate: SSH desde LAN/AI"
 
-		# Servicios publicados por Docker (llegan por FORWARD, pero por si algún día
-		# Caddy o WireGuard corren en el host): 443 desde LAN/AI/WG y 51820/udp.
-		ip saddr { $LAN_NET, $AI_NET, $WG_NET } tcp dport 443 accept
+		# Servicios publicados por Docker. Normalmente llegan por FORWARD, pero pasan por INPUT
+		# cuando los atiende docker-proxy (clientes WireGuard vía FRONT_NET) o si algún día
+		# Caddy/WireGuard corren en el host: 443 desde LAN/AI/WG/FRONT y 51820/udp.
+		ip saddr { $LAN_NET, $AI_NET, $WG_NET, $FRONT_NET } tcp dport 443 accept
 		udp dport 51820 accept
 
 		# Registro limitado y descarte por defecto.
