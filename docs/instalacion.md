@@ -338,5 +338,12 @@ y luego `make nft-apply`.
 **`make doctor` falla en "Ollama responde desde gd_ai".** Ollama aún está arrancando o
 `open-webui` no está en la red `gd_ai`. `sudo docker logs gd-ollama`.
 
+**Pocket ID se reinicia solo de vez en cuando** (`docker logs gd-pocket-id` muestra "Health check
+failed … host is not registered"). Lo observamos en las VMs de prueba en ambos sistemas, con y sin
+`TZ`, y los reinicios coincidían en el mismo minuto en las dos VMs del mismo anfitrión, lo que
+apunta a saltos de reloj de la máquina virtual y no a la configuración. El contenedor vuelve en
+un segundo (`restart: unless-stopped`) y las sesiones se conservan. Si te ocurre en hardware
+real, revisa la sincronización horaria (`timedatectl`) y abre una incidencia con los logs.
+
 **Uso una GPU.** Descomenta el bloque NVIDIA o AMD/ROCm del servicio `ollama` en
 `compose/docker-compose.yml` (NVIDIA requiere `nvidia-container-toolkit` en el host).

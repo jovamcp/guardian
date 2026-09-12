@@ -39,6 +39,8 @@ Siguiente: Fase 2 (LiteLLM, red `gd_agents`, egreso, primer sandbox).
   neutraliza (drop-in + comentario). Nunca uses `flush ruleset`; reaplica con `make nft-apply`.
 - Los clientes WireGuard llegan al host enmascarados con la IP de wg-easy (172.28.10.0/24) y
   por INPUT (docker-proxy, hairpin): esa subred debe estar permitida en 443 en ambos archivos.
+- Pocket ID 2.14.0 reinició periódicamente en las VMs ("host is not registered"), con y sin TZ y a la
+  misma hora en ambas VMs del mismo anfitrión: probable salto de reloj de la VM. Vigilar en hardware real.
 - Pruebas en Apple Silicon (Lima/vz): Open WebUI muere con SIGILL en `cryptography`; usa
   `OPENSSL_armcap=0` en un override fuera del repo. No afecta a x86-64.
 
