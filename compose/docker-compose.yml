@@ -26,6 +26,11 @@
 #                /health/liveliness y /health/readiness),
 #                https://docs.litellm.ai/docs/proxy/virtual_keys (llaves virtuales exigen Postgres),
 #                https://docs.litellm.ai/docs/providers/ollama (prefijo ollama_chat/)
+#   - Blocky (Fase 2): https://0xerr0r.github.io/blocky/latest/configuration/ (denylists/allowlists
+#                por grupo, clientGroupsBlock por IP, blockType, ports.dns/http; imagen
+#                ghcr.io/0xerr0r/blocky:vX.Y.Z)
+#   - Squid (Fase 2): https://hub.docker.com/r/ubuntu/squid (config en /etc/squid/squid.conf,
+#                snippets en /etc/squid/conf.d/, puerto 3128)
 
 name: guardian
 
@@ -264,6 +269,51 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
+
+  # ---------------------------------------------------------------- Fase 2: egreso de agentes
+  blocky:
+    image: ghcr.io/0xerr0r/blocky:v0.35.0
+    container_name: gd-blocky
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      TZ: ${TZ}
+    volumes:
+      # Generado por `guardianctl policy render egress` a partir de agents/*.yaml.
+      - ./blocky/config.yml:/app/config.yml:ro
+    networks:
+      gd_egress: {}
+      gd_agents:
+        ipv4_address: 172.28.30.53     # DNS de los agentes (--dns en el runner)
+    healthcheck:
+      test: ["CMD", "/app/blocky", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  squid:
+    image: ubuntu/squid:6.6-24.04_beta
+    container_name: gd-squid
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ./squid/squid.conf:/etc/squid/squid.conf:ro
+      # Generado por `guardianctl policy render egress`: una ACL por agente.
+      - ./squid/agents.conf:/etc/squid/conf.d/guardian-agents.conf:ro
+    networks:
+      gd_egress: {}
+      gd_agents:
+        ipv4_address: 172.28.30.3      # HTTPS_PROXY de los agentes
+    healthcheck:
+      # La imagen no trae curl ni squidclient: basta con que el puerto acepte conexiones.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/3128"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   wg-easy:
     image: ghcr.io/wg-easy/wg-easy:15

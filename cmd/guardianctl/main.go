@@ -46,7 +46,9 @@ func main() {
 		os.Exit(cmdInit())
 	case "key":
 		os.Exit(cmdKey(os.Args[2:]))
-	case "policy", "agent", "secret":
+	case "policy":
+		os.Exit(cmdPolicy(os.Args[2:]))
+	case "agent", "secret":
 		fmt.Fprintf(os.Stderr, "guardianctl %s: pendiente (se implementa en fases posteriores)\n", os.Args[1])
 		os.Exit(1)
 	case "-h", "--help", "help":
@@ -68,7 +70,9 @@ func usage() {
   key       llaves virtuales del gateway LiteLLM:
               key create --name <agente> --models m1,m2 [--budget USD] [--rpm N] [--duration 30d]
               key list | key delete <sk-...>
-  policy | agent | secret   pendientes`)
+  policy    policy render egress   genera compose/squid/agents.conf y compose/blocky/config.yml
+                                   a partir de agents/*.yaml (allowlist por agente)
+  agent | secret   pendientes`)
 }
 
 // repoRoot localiza la raíz del repo: directorio actual o el del binario (bin/..).

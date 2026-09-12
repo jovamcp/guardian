@@ -2,7 +2,7 @@
 SUDO    := $(if $(filter 0,$(shell id -u)),,sudo)
 COMPOSE := $(SUDO) docker compose --env-file compose/.env -f compose/docker-compose.yml
 
-.PHONY: up down restart reload-caddy ps logs build doctor status nft-check nft-apply
+.PHONY: up down restart reload-caddy render-egress restart-egress ps logs build doctor status nft-check nft-apply
 
 up:
 	$(COMPOSE) up -d
@@ -15,6 +15,14 @@ restart:
 	$(COMPOSE) up -d --force-recreate open-webui
 	$(COMPOSE) restart pocket-id wg-easy ollama litellm
 	$(COMPOSE) exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+
+## render-egress: regenera las allowlists de Squid y Blocky desde agents/*.yaml y las aplica.
+render-egress: build
+	$(SUDO) ./bin/guardianctl policy render egress
+	$(MAKE) restart-egress
+
+restart-egress:
+	$(COMPOSE) restart squid blocky
 
 ## reload-caddy: recarga el Caddyfile sin cortar conexiones.
 reload-caddy:

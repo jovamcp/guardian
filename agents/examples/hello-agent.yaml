@@ -1,0 +1,32 @@
+# Agente de ejemplo REAL de la Fase 2: comprueba el sandbox de extremo a extremo.
+#   sudo guardianctl agent run hello-agent
+# 1) pide una respuesta al LLM a través del gateway (http://litellm:4000) con su llave virtual;
+# 2) descarga https://api.github.com/zen a través del proxy (dominio permitido);
+# 3) comprueba que un dominio NO permitido falla.
+name: hello-agent
+
+# Imagen fijada por digest (regla dura 4). python:3.12-alpine multi-arch, 2026-09.
+image: python:3.12-alpine@sha256:b64631e04e4920160c50fbe8d8df828f7f35f06f425cb44aa09bca53e708a35a
+
+llm:
+  models: [qwen2.5:0.5b]
+  key: auto            # guardianctl crea una llave virtual efímera para esta ejecución
+
+egress:
+  allow:
+    - api.github.com
+
+services: {}
+
+resources:
+  cpus: "1"
+  memory: 256m
+  pids: 64
+
+schedule:
+  cron: ""
+
+# El código del agente se monta de solo lectura (ruta relativa al manifiesto).
+mounts:
+  - ./hello-agent:/app
+command: ["python3", "/app/main.py"]

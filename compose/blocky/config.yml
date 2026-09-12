@@ -1,0 +1,43 @@
+# Generado por `guardianctl policy render egress`. No editar a mano.
+upstreams:
+  groups:
+    default:
+      - 1.1.1.1
+      - 9.9.9.9
+ports:
+  dns: 53
+  http: 4000
+log:
+  level: info
+  format: text
+blocking:
+  blockType: nxDomain
+  blockTTL: 1m
+  denylists:
+    all:
+      - |
+        /.*/
+    agent-hello-agent:
+      - |
+        /.*/
+    agent-openclaw:
+      - |
+        /.*/
+  allowlists:
+    agent-hello-agent:
+      - |
+        /^api\.github\.com$/
+    agent-openclaw:
+      - |
+        /^api\.github\.com$/
+        /^pypi\.org$/
+        /^files\.pythonhosted\.org$/
+  clientGroupsBlock:
+    default:
+      - all
+    172.28.30.153:
+      - all
+      - agent-hello-agent
+    172.28.30.130:
+      - all
+      - agent-openclaw
