@@ -1,0 +1,35 @@
+# Manifiesto de ejemplo de un agente Guardian (DESIGN.md, sección 5).
+# NO SE EJECUTA en la Fase 1: la red gd_agents, LiteLLM y el sandbox llegan en la Fase 2.
+name: openclaw
+
+# Imagen fijada por digest (regla dura 4). Este digest es un marcador de posición.
+image: ghcr.io/openclaw/openclaw@sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+llm:
+  # Modelos que el agente puede pedir al gateway (LiteLLM). Cualquier otro se rechaza.
+  models: [llama3.1:8b, qwen2.5-coder:7b]
+  # `auto`: guardianctl crea una llave virtual por agente con estos modelos y cuota.
+  key: auto
+
+egress:
+  # Allowlist de destinos HTTPS por el proxy de egreso. Todo lo demás se descarta y registra.
+  allow:
+    - api.github.com
+    - pypi.org
+    - files.pythonhosted.org
+
+services:
+  # Credenciales que el agente necesita. Nunca van en texto claro en este archivo:
+  # `vault:` referencia un secreto cifrado (age/sops) en vault/ que se inyecta como archivo 0400.
+  github:
+    url: https://api.github.com
+    token: vault:openclaw/github_token
+
+resources:
+  cpus: "2"
+  memory: 2g
+  pids: 256
+
+schedule:
+  # Opcional. Vacío = ejecución manual con `guardianctl agent run openclaw`.
+  cron: ""

@@ -1,0 +1,211 @@
+# Guardian v0.1 — Fase 1: Caddy + Pocket ID + Open WebUI + Ollama + wg-easy.
+#
+# Reglas duras que este archivo respeta:
+#   1. Ollama NO publica puertos; solo existe en la red gd_ai.
+#   2. Solo se publican 443/tcp (caddy) y 51820/udp (wg-easy).
+#   6. Ningún secreto aquí: todo viene de compose/.env (ignorado por git).
+#
+# Fuentes verificadas (2026-09-12) para nombres de variables y puertos:
+#   - Pocket ID: https://pocket-id.org/docs/configuration/environment-variables
+#                https://github.com/pocket-id/pocket-id/blob/main/docker-compose.yml
+#                (imagen :v2, puerto 1411, volumen /app/data, ENCRYPTION_KEY obligatoria,
+#                healthcheck `/app/pocket-id healthcheck`, TRUST_PROXY admite lista IP/CIDR desde v2.11)
+#   - Open WebUI: https://docs.openwebui.com/reference/env-configuration/
+#                 https://docs.openwebui.com/features/authentication-access/auth/sso/
+#                 backend/open_webui/config.py y env.py en github.com/open-webui/open-webui
+#                 (puerto 8080, /health, redirect URI <WEBUI_URL>/oauth/oidc/callback,
+#                 AIOHTTP_CLIENT_SSL_CERT_FILE = bundle CA para el discovery OIDC vía aiohttp)
+#   - wg-easy:  https://github.com/wg-easy/wg-easy/blob/master/docker-compose.yml
+#               https://wg-easy.github.io/wg-easy/latest/advanced/config/optional-config/
+#               https://wg-easy.github.io/wg-easy/latest/advanced/config/unattended-setup/
+#               (imagen :15, UI en 51821/tcp, WireGuard 51820/udp, sin WG_HOST: asistente web
+#               en el primer arranque o variables INIT_*; requiere /lib/modules:ro)
+#   - Caddy: https://caddyserver.com/docs/caddyfile/directives/tls (tls internal)
+
+name: guardian
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+networks:
+  # Frontal: lo que Caddy expone. Subred fija para poder listarla en TRUST_PROXY.
+  gd_front:
+    name: gd_front
+    ipam:
+      config:
+        - subnet: 172.28.10.0/24
+  # IA: Ollama solo vive aquí. Sin puertos publicados.
+  gd_ai:
+    name: gd_ai
+    ipam:
+      config:
+        - subnet: 172.28.20.0/24
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pocket_id_data:
+  open_webui_data:
+  ollama_data:
+  wg_easy_data:
+
+services:
+  caddy:
+    image: caddy:2
+    container_name: gd-caddy
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      DOMAIN: ${DOMAIN}
+      TZ: ${TZ}
+    ports:
+      - "443:443/tcp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - gd_front
+    healthcheck:
+      # El admin API escucha en localhost:2019 dentro del contenedor (ver Caddyfile).
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  pocket-id:
+    image: ghcr.io/pocket-id/pocket-id:v2
+    container_name: gd-pocket-id
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      APP_URL: https://id.${DOMAIN}
+      # Confiar en X-Forwarded-For solo desde la red donde vive Caddy.
+      TRUST_PROXY: 172.28.10.0/24
+      ENCRYPTION_KEY: ${POCKET_ID_ENCRYPTION_KEY}
+      ALLOW_INSECURE_CALLBACK_URLS: "false"
+      TZ: ${TZ}
+    volumes:
+      - pocket_id_data:/app/data
+    networks:
+      - gd_front
+    healthcheck:
+      test: ["CMD", "/app/pocket-id", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: gd-open-webui
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - ollama
+    environment:
+      TZ: ${TZ}
+      WEBUI_URL: https://${DOMAIN}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      OLLAMA_BASE_URL: http://ollama:11434
+      # Registro solo vía OIDC.
+      ENABLE_SIGNUP: "false"
+      ENABLE_OAUTH_SIGNUP: "true"
+      OAUTH_PROVIDER_NAME: Pocket ID
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
+      OPENID_PROVIDER_URL: https://id.${DOMAIN}/.well-known/openid-configuration
+      OAUTH_SCOPES: openid email profile
+      # Confianza en la CA interna de Caddy (exportada por install.sh / guardianctl init):
+      #  - SSL_CERT_FILE / REQUESTS_CA_BUNDLE: httpx/requests/authlib (intercambio de tokens).
+      #  - AIOHTTP_CLIENT_SSL_CERT_FILE: aiohttp (descarga del documento OIDC discovery).
+      SSL_CERT_FILE: /certs/root.crt
+      REQUESTS_CA_BUNDLE: /certs/root.crt
+      AIOHTTP_CLIENT_SSL_CERT_FILE: /certs/root.crt
+    extra_hosts:
+      # El contenedor debe llegar a id.<DOMAIN> a través de Caddy (443 del host).
+      - "id.${DOMAIN}:host-gateway"
+    volumes:
+      - open_webui_data:/app/backend/data
+      - ./certs/root.crt:/certs/root.crt:ro
+    networks:
+      - gd_front
+      - gd_ai
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  ollama:
+    image: ollama/ollama
+    container_name: gd-ollama
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - gd_ai
+    # SIN `ports:` a propósito (regla dura 1).
+    healthcheck:
+      # La imagen no trae curl; `ollama list` falla si el servidor no responde.
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    # --- GPU NVIDIA (requiere nvidia-container-toolkit en el host) ---
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    # --- GPU AMD / ROCm (usa la imagen ollama/ollama:rocm) ---
+    # image: ollama/ollama:rocm
+    # devices:
+    #   - /dev/kfd
+    #   - /dev/dri
+
+  wg-easy:
+    image: ghcr.io/wg-easy/wg-easy:15
+    container_name: gd-wg-easy
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      TZ: ${TZ}
+      # UI web solo detrás de Caddy (vpn.<DOMAIN>); nunca se publica 51821.
+      PORT: "51821"
+      HOST: "0.0.0.0"
+      INSECURE: "false"
+      DISABLE_IPV6: "true"
+      # wg-easy v15 se configura en el asistente web del primer arranque
+      # (nombre de host = WG_HOST del .env, puerto 51820). Alternativa sin asistente:
+      # INIT_ENABLED=true + INIT_USERNAME/INIT_PASSWORD/INIT_HOST/INIT_PORT.
+    ports:
+      - "51820:51820/udp"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    volumes:
+      - wg_easy_data:/etc/wireguard
+      - /lib/modules:/lib/modules:ro
+    networks:
+      - gd_front
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:51821/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

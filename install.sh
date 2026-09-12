@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+# Guardian v0.1 — instalador.
+# Uso:  sudo ./install.sh [--with-nftables]
+#
+# Idempotente: se puede ejecutar varias veces. No usa `curl | bash` (regla dura 3):
+# Docker se instala desde el repositorio apt oficial con keyring verificado.
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_DIR="${REPO_DIR}/compose"
+ENV_FILE="${COMPOSE_DIR}/.env"
+CERT_DIR="${COMPOSE_DIR}/certs"
+COMPOSE=(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_DIR}/docker-compose.yml")
+WITH_NFTABLES=0
+
+for arg in "$@"; do
+	case "${arg}" in
+		--with-nftables) WITH_NFTABLES=1 ;;
+		-h|--help) sed -n '2,7p' "$0"; exit 0 ;;
+		*) echo "Argumento desconocido: ${arg}" >&2; exit 2 ;;
+	esac
+done
+
+log()  { printf '\033[1;34m[guardian]\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m[guardian] AVISO:\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[1;31m[guardian] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
+
+require_root() {
+	[[ "${EUID}" -eq 0 ]] || die "Ejecuta con sudo: sudo ./install.sh"
+}
+
+check_os() {
+	[[ -r /etc/os-release ]] || die "No se encuentra /etc/os-release; solo se soporta Linux."
+	# shellcheck disable=SC1091
+	. /etc/os-release
+	OS_ID="${ID:-}"
+	OS_VERSION="${VERSION_ID:-}"
+	OS_CODENAME="${VERSION_CODENAME:-}"
+	case "${OS_ID}:${OS_VERSION}" in
+		debian:12|ubuntu:24.04) log "Sistema soportado: ${PRETTY_NAME}" ;;
+		debian:*|ubuntu:*) warn "Probado solo en Debian 12 y Ubuntu 24.04; tienes ${PRETTY_NAME}. Continúo." ;;
+		*) warn "Distribución no soportada (${PRETTY_NAME}). Instala Docker manualmente si falla." ;;
+	esac
+}
+
+install_docker() {
+	if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+		log "Docker y compose ya instalados: $(docker --version)"
+		return
+	fi
+	case "${OS_ID}" in
+		debian|ubuntu) ;;
+		*) die "Instala Docker Engine + compose plugin manualmente y vuelve a ejecutar." ;;
+	esac
+	log "Instalando Docker desde el repositorio oficial (apt + keyring)…"
+	# Fuente: https://docs.docker.com/engine/install/${OS_ID}/ (formato deb822).
+	export DEBIAN_FRONTEND=noninteractive
+	apt-get update -qq
+	apt-get install -y -qq ca-certificates curl gnupg >/dev/null
+	install -m 0755 -d /etc/apt/keyrings
+	if [[ ! -s /etc/apt/keyrings/docker.asc ]]; then
+		curl -fsSL "https://download.docker.com/linux/${OS_ID}/gpg" -o /etc/apt/keyrings/docker.asc
+		chmod a+r /etc/apt/keyrings/docker.asc
+	fi
+	cat > /etc/apt/sources.list.d/docker.sources <<SRC
+Types: deb
+URIs: https://download.docker.com/linux/${OS_ID}
+Suites: ${OS_CODENAME}
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+SRC
+	apt-get update -qq
+	apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null
+	systemctl enable --now docker
+	log "Docker instalado: $(docker --version)"
+}
+
+gen_secret_if_empty() {
+	# gen_secret_if_empty VAR "comando que imprime el secreto"
+	local var="$1" cmd="$2" current
+	current="$(grep -E "^${var}=" "${ENV_FILE}" | head -n1 | cut -d= -f2- || true)"
+	if [[ -z "${current}" ]]; then
+		local value
+		value="$(eval "${cmd}")"
+		sed -i "s|^${var}=.*|${var}=${value}|" "${ENV_FILE}"
+		log "Generado ${var}."
+	fi
+}
+
+prepare_env() {
+	if [[ ! -f "${ENV_FILE}" ]]; then
+		install -m 0600 "${REPO_DIR}/.env.example" "${ENV_FILE}"
+		log "Creado ${ENV_FILE} (0600) a partir de .env.example."
+	else
+		chmod 0600 "${ENV_FILE}"
+		log "${ENV_FILE} ya existe; conservo su contenido."
+	fi
+	command -v openssl >/dev/null 2>&1 || apt-get install -y -qq openssl >/dev/null
+	gen_secret_if_empty WEBUI_SECRET_KEY "openssl rand -hex 32"
+	gen_secret_if_empty POCKET_ID_ENCRYPTION_KEY "openssl rand -base64 32"
+
+	# shellcheck disable=SC1090
+	set -a; . "${ENV_FILE}"; set +a
+	if [[ -z "${WG_HOST:-}" ]] && [[ -t 0 ]]; then
+		warn "Revisa DOMAIN, TZ y WG_HOST en ${ENV_FILE}."
+		read -r -p "¿Editar ahora con ${EDITOR:-nano}? [s/N] " ans
+		if [[ "${ans:-}" =~ ^[sSyY]$ ]]; then
+			"${EDITOR:-nano}" "${ENV_FILE}"
+			set -a; . "${ENV_FILE}"; set +a
+		fi
+	fi
+	[[ -n "${DOMAIN:-}" ]] || die "DOMAIN vacío en ${ENV_FILE}."
+	log "Dominio: ${DOMAIN}  (id.${DOMAIN}, vpn.${DOMAIN})"
+}
+
+export_caddy_ca() {
+	# Open WebUI monta compose/certs/root.crt, así que la CA debe existir ANTES de
+	# levantar el resto. Se levanta solo caddy, se espera a que genere su PKI y se copia.
+	mkdir -p "${CERT_DIR}"
+	if [[ -s "${CERT_DIR}/root.crt" ]]; then
+		log "CA interna ya exportada en ${CERT_DIR}/root.crt."
+		return
+	fi
+	log "Levantando solo caddy para generar la CA interna…"
+	"${COMPOSE[@]}" up -d caddy
+	local i
+	for i in $(seq 1 30); do
+		if docker exec gd-caddy test -s /data/caddy/pki/authorities/local/root.crt 2>/dev/null; then
+			docker cp gd-caddy:/data/caddy/pki/authorities/local/root.crt "${CERT_DIR}/root.crt"
+			chmod 0644 "${CERT_DIR}/root.crt"
+			log "CA exportada a ${CERT_DIR}/root.crt."
+			return
+		fi
+		sleep 2
+	done
+	die "Caddy no generó la CA en 60 s. Revisa: docker logs gd-caddy"
+}
+
+start_stack() {
+	log "Levantando la plataforma…"
+	"${COMPOSE[@]}" pull --quiet
+	"${COMPOSE[@]}" up -d
+	"${COMPOSE[@]}" ps
+}
+
+apply_nftables() {
+	[[ "${WITH_NFTABLES}" -eq 1 ]] || { log "nftables omitido (usa --with-nftables para aplicarlo)."; return; }
+	command -v nft >/dev/null 2>&1 || apt-get install -y -qq nftables >/dev/null
+	local ruleset="${REPO_DIR}/nftables/guardian.nft"
+	log "Validando ${ruleset} (nft -c)…"
+	nft -c -f "${ruleset}"            # regla dura 7: nunca aplicar sin validar
+	nft -f "${ruleset}"
+	log "Ruleset aplicado (tabla inet guardian). Persistencia: Fase 1, tarea 4."
+}
+
+main() {
+	require_root
+	check_os
+	install_docker
+	prepare_env
+	export_caddy_ca
+	start_stack
+	apply_nftables
+	cat <<NEXT
+
+========================================================================
+ Guardian está levantado. Siguientes pasos:
+  1. DNS local: apunta ${DOMAIN}, id.${DOMAIN} y vpn.${DOMAIN} a la IP de este host.
+  2. Instala la CA en tus dispositivos: ${CERT_DIR}/root.crt
+  3. Pocket ID: https://id.${DOMAIN}/setup → crea el admin (passkey) y un cliente
+     OIDC "open-webui" con callback https://${DOMAIN}/oauth/oidc/callback
+  4. Copia OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET a ${ENV_FILE} y ejecuta: make restart
+  5. WireGuard: https://vpn.${DOMAIN} → asistente (host: ${WG_HOST:-<WG_HOST>}, puerto 51820)
+  6. Comprueba: make doctor
+========================================================================
+NEXT
+}
+
+main "$@"

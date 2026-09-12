@@ -1,0 +1,12 @@
+# Secretos y material local (regla dura 6)
+compose/.env
+compose/certs/*
+!compose/certs/.gitkeep
+vault/
+
+# Binarios y artefactos
+bin/
+*.log
+
+# binario suelto de `go build ./...` en la raíz
+/guardianctl

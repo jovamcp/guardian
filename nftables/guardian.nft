@@ -1,0 +1,46 @@
+#!/usr/sbin/nft -f
+# Guardian v0.1 — firewall del HOST.
+#
+# IMPORTANTE: Docker publica los puertos de los contenedores por la cadena FORWARD
+# (DNAT en nat/PREROUTING y aceptación en la cadena DOCKER-USER), NO por INPUT.
+# Por eso esta tabla solo protege servicios que corren en el propio host (SSH) y
+# registra los descartes. Las restricciones de origen para 443 y 51820 se hacen
+# en DOCKER-USER (ver nftables/docker-user.nft, Fase 1 tarea 4) y en el firewall de la VLAN.
+#
+# Validar SIEMPRE antes de aplicar (regla dura 7):  nft -c -f nftables/guardian.nft
+# Aplicar:                                          nft -f nftables/guardian.nft
+
+define LAN_NET = 10.10.10.0/24
+define AI_NET  = 10.20.0.0/24
+define WG_NET  = 10.8.0.0/24
+
+table inet guardian {
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		# Loopback y estado.
+		iif "lo" accept
+		ct state established,related accept
+		ct state invalid drop
+
+		# ICMP / ICMPv6 (Neighbor Discovery y echo).
+		ip protocol icmp icmp type { echo-request, destination-unreachable, time-exceeded, parameter-problem } accept
+		ip6 nexthdr icmpv6 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-advert, nd-router-solicit, echo-request, destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept
+
+		# Cliente DHCPv6.
+		ip6 daddr fe80::/64 udp dport 546 accept
+
+		# REGLA DE RESCATE (regla dura 5): SSH siempre accesible desde LAN y zona de IA.
+		# No eliminar ni mover debajo de otra regla que pueda descartar antes.
+		ip saddr { $LAN_NET, $AI_NET } tcp dport 22 accept comment "rescate: SSH desde LAN/AI"
+
+		# Servicios publicados por Docker (llegan por FORWARD, pero por si algún día
+		# Caddy o WireGuard corren en el host): 443 desde LAN/AI/WG y 51820/udp.
+		ip saddr { $LAN_NET, $AI_NET, $WG_NET } tcp dport 443 accept
+		udp dport 51820 accept
+
+		# Registro limitado y descarte por defecto.
+		limit rate 10/minute burst 20 packets log prefix "gd-drop-in: " level info
+		drop
+	}
+}

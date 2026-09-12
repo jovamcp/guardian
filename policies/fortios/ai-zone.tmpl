@@ -1,0 +1,105 @@
+{{- /*
+Plantilla FortiOS (7.x) para la zona de IA de Guardian. La renderiza `guardianctl policy render`
+(Go text/template). Variables:
+  .VLAN .GatewayIP .ParentInterface .LANInterface .WANInterface
+  .LANCIDR .AICIDR .HostIP .WANIP
+Revisa los nombres antes de pegar en la CLI; en tu FortiGate pueden existir ya objetos con esos nombres.
+*/ -}}
+# ===== Guardian: zona de IA (VLAN {{.VLAN}}) =====
+
+config system interface
+    edit "ai-zone"
+        set vdom "root"
+        set ip {{.GatewayIP}} 255.255.255.0
+        set allowaccess ping
+        set role lan
+        set interface "{{.ParentInterface}}"
+        set vlanid {{.VLAN}}
+    next
+end
+
+config firewall address
+    edit "LAN_NET"
+        set subnet {{.LANCIDR}}
+    next
+    edit "AI_ZONE_NET"
+        set subnet {{.AICIDR}}
+    next
+    edit "GUARDIAN_HOST"
+        set subnet {{.HostIP}}/32
+    next
+end
+
+config firewall service custom
+    edit "GUARDIAN_HTTPS"
+        set tcp-portrange 443
+    next
+    edit "GUARDIAN_WG"
+        set udp-portrange 51820
+    next
+end
+
+# VIP: WireGuard entrante (WAN → host Guardian). Único servicio expuesto a Internet.
+config firewall vip
+    edit "GUARDIAN_WG_VIP"
+        set extip {{.WANIP}}
+        set mappedip "{{.HostIP}}"
+        set extintf "{{.WANInterface}}"
+        set portforward enable
+        set protocol udp
+        set extport 51820
+        set mappedport 51820
+    next
+end
+
+config firewall policy
+    # LAN → Guardian: solo HTTPS (Open WebUI, Pocket ID, panel WireGuard).
+    edit 0
+        set name "LAN-to-Guardian-HTTPS"
+        set srcintf "{{.LANInterface}}"
+        set dstintf "ai-zone"
+        set srcaddr "LAN_NET"
+        set dstaddr "GUARDIAN_HOST"
+        set action accept
+        set schedule "always"
+        set service "GUARDIAN_HTTPS"
+        set logtraffic all
+    next
+    # WAN → Guardian: WireGuard por VIP.
+    edit 0
+        set name "WAN-to-Guardian-WG"
+        set srcintf "{{.WANInterface}}"
+        set dstintf "ai-zone"
+        set srcaddr "all"
+        set dstaddr "GUARDIAN_WG_VIP"
+        set action accept
+        set schedule "always"
+        set service "GUARDIAN_WG"
+        set logtraffic all
+    next
+    # AI → LAN: denegar y registrar (evita movimiento lateral a NAS / Home Assistant).
+    edit 0
+        set name "AI-to-LAN-DENY"
+        set srcintf "ai-zone"
+        set dstintf "{{.LANInterface}}"
+        set srcaddr "AI_ZONE_NET"
+        set dstaddr "LAN_NET"
+        set action deny
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+    next
+    # AI → Internet: solo HTTPS, DNS y NTP con NAT (pull de imágenes/modelos, hora).
+    edit 0
+        set name "AI-to-Internet"
+        set srcintf "ai-zone"
+        set dstintf "{{.WANInterface}}"
+        set srcaddr "AI_ZONE_NET"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "HTTPS" "DNS" "NTP"
+        set nat enable
+        set logtraffic all
+    next
+end

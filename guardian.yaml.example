@@ -1,0 +1,38 @@
+# guardian.yaml — configuración declarativa de Guardian (la lee guardianctl).
+# En la Fase 1 solo se usa como referencia; guardianctl init la generará en la Fase 4.
+domain: ai.home
+
+# Red de usuarios (LAN de casa).
+lan_cidr: 10.10.10.0/24
+
+# Zona de IA: VLAN dedicada donde vive el host Guardian.
+ai_zone:
+  vlan: 20
+  cidr: 10.20.0.0/24
+  host_ip: 10.20.0.10
+
+# Acceso remoto: wireguard (wg-easy) o tailscale.
+remote:
+  provider: wireguard
+  cidr: 10.8.0.0/24
+  endpoint: ""            # WG_HOST: DNS público o IP WAN
+
+# Runtime de IA que Guardian protege.
+runtime:
+  kind: ollama            # ollama | llamacpp | vllm
+  gpu: none               # none | nvidia | amd
+
+# Firewall perimetral para el que se generan políticas (policy render).
+firewall:
+  vendor: fortios         # fortios | opnsense | unifi
+  parent_interface: internal
+  lan_interface: internal
+  wan_interface: wan1
+
+audit:
+  retention_days: 30
+
+alerts:
+  ntfy:
+    url: ""
+    topic: guardian

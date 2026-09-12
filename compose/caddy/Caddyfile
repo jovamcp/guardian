@@ -1,0 +1,36 @@
+# Caddyfile de Guardian v0.1.
+# TLS interno (CA propia de Caddy). La raíz se exporta a compose/certs/root.crt.
+{
+	admin localhost:2019
+}
+
+(secure) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# Open WebUI (chat)
+{$DOMAIN} {
+	tls internal
+	import secure
+	reverse_proxy open-webui:8080
+}
+
+# Pocket ID (identidad OIDC, passkeys)
+id.{$DOMAIN} {
+	tls internal
+	import secure
+	reverse_proxy pocket-id:1411
+}
+
+# wg-easy (panel de WireGuard)
+vpn.{$DOMAIN} {
+	tls internal
+	import secure
+	reverse_proxy wg-easy:51821
+}
