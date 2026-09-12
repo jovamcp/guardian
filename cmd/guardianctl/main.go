@@ -25,7 +25,13 @@ import (
 const version = "0.1.0-dev"
 
 // Servicios que deben estar en ejecución (nombres de servicio del compose).
-var requiredServices = []string{"caddy", "pocket-id", "open-webui", "ollama", "wg-easy"}
+var requiredServices = []string{"caddy", "pocket-id", "open-webui", "ollama", "wg-easy",
+	"litellm-db", "litellm", "blocky", "squid"}
+
+// errWarn marca una comprobación que no debe hacer fallar al doctor (aviso).
+type errWarn struct{ msg string }
+
+func (e errWarn) Error() string { return e.msg }
 
 // Puertos publicados permitidos (regla dura 2).
 var allowedPublished = map[string]bool{"443/tcp": true, "51820/udp": true}
@@ -132,20 +138,28 @@ func cmdDoctor() int {
 	root := repoRoot()
 	checks := []check{
 		{"docker disponible", checkDocker},
-		{"los 5 servicios en ejecución", checkServicesRunning},
+		{"los 9 servicios en ejecución", checkServicesRunning},
 		{"ningún socket del host escucha en 11434", checkNoHostOllama},
 		{"contenedores gd-* solo publican 443/tcp y 51820/udp", checkPublishedPorts},
 		{"existe compose/certs/root.crt", checkRootCert},
 		{"Ollama responde desde gd_ai (open-webui → http://ollama:11434/api/tags)", checkOllamaFromWebUI},
 		{"443 presenta un certificado emitido por la CA interna", checkTLSIssuedByInternalCA},
+		{"gd_agents es una red interna (sin ruta a Internet)", checkAgentsNetworkInternal},
+		{"un contenedor en gd_agents no alcanza Internet ni el host directamente", checkAgentsIsolation},
+		{"ningún contenedor de agente tiene el socket de Docker", checkNoDockerSockInAgents},
 	}
 	failed := 0
 	for _, c := range checks {
-		if err := c.fn(root); err != nil {
+		err := c.fn(root)
+		var w errWarn
+		switch {
+		case err == nil:
+			fmt.Printf("[ OK ] %s\n", c.name)
+		case errors.As(err, &w):
+			fmt.Printf("[WARN] %s\n       %s\n", c.name, w.msg)
+		default:
 			failed++
 			fmt.Printf("[FAIL] %s\n       %v\n", c.name, err)
-		} else {
-			fmt.Printf("[ OK ] %s\n", c.name)
 		}
 	}
 	if failed > 0 {
@@ -521,4 +535,69 @@ func cmdKey(args []string) int {
 		fmt.Fprintln(os.Stderr, "key: subcomando desconocido:", args[0])
 		return 2
 	}
+}
+
+// ---------------------------------------------------------------- doctor (Fase 2)
+
+const probeImage = "busybox:1.37"
+
+func checkAgentsNetworkInternal(string) error {
+	out, err := run("docker", "network", "inspect", "gd_agents", "--format", "{{.Internal}}")
+	if err != nil {
+		return fmt.Errorf("la red gd_agents no existe: %v", err)
+	}
+	if strings.TrimSpace(out) != "true" {
+		return errors.New("gd_agents no es internal: los agentes tendrían ruta por defecto")
+	}
+	return nil
+}
+
+// checkAgentsIsolation lanza una sonda efímera en gd_agents (sin política de egreso) y
+// comprueba que no conecta a Internet. Que tampoco llegue al gateway del host depende del
+// firewall (--with-nftables), así que eso es un aviso, no un fallo.
+func checkAgentsIsolation(string) error {
+	probe := func(target string) bool {
+		_, err := run("docker", "run", "--rm", "--network", "gd_agents", "--dns", agentsDNS,
+			"--cap-drop", "ALL", "--user", agentUID, "--read-only", probeImage,
+			"nc", "-z", "-w", "3", target, "443")
+		return err == nil // conectó
+	}
+	if _, err := run("docker", "image", "inspect", probeImage); err != nil {
+		if _, err := run("docker", "pull", "-q", probeImage); err != nil {
+			return fmt.Errorf("no se pudo obtener la imagen de sonda %s: %v", probeImage, err)
+		}
+	}
+	if probe("1.1.1.1") {
+		return errors.New("una sonda en gd_agents conectó a 1.1.1.1:443 sin pasar por el proxy")
+	}
+	if probe("172.28.30.1") {
+		return errWarn{"la sonda alcanzó 172.28.30.1:443 (docker-proxy del host). Aplica el firewall: sudo ./install.sh --with-nftables"}
+	}
+	return nil
+}
+
+func checkNoDockerSockInAgents(string) error {
+	out, err := run("docker", "ps", "-q", "--filter", "label=guardian.agent")
+	if err != nil {
+		return err
+	}
+	ids := strings.Fields(out)
+	if len(ids) == 0 {
+		return nil
+	}
+	args := append([]string{"inspect", "--format", "{{.Name}} {{range .Mounts}}{{.Source}} {{end}}"}, ids...)
+	out, err = run("docker", args...)
+	if err != nil {
+		return err
+	}
+	var bad []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if strings.Contains(line, "docker.sock") {
+			bad = append(bad, strings.Fields(line)[0])
+		}
+	}
+	if len(bad) > 0 {
+		return fmt.Errorf("agentes con docker.sock montado: %s", strings.Join(bad, ", "))
+	}
+	return nil
 }

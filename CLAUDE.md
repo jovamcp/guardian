@@ -7,10 +7,9 @@ nftables, sandbox de agentes con egreso por allowlist y auditoría. Diseño comp
 Documentación y comentarios en español; identificadores, archivos y commits en inglés.
 
 ## Fase actual
-**Fase 2 (semanas 3–4): agentes — en curso.** LiteLLM con llaves virtuales, redes `gd_agents` y
-`gd_egress`, Squid + Blocky con allowlist por agente, sandbox (seccomp, AppArmor, runner) y vault
-con age. Plan y criterios: `docs/prompts/02-fase-2.md`. La Fase 1 (base) está completa y probada
-en VMs (`docs/prompts/01-fase-1.md`). Nada de auditoría (Fase 3) todavía.
+**Fases 1 y 2 completadas y probadas en VMs.** Siguiente: **Fase 3 (semanas 5–6): auditoría y
+alertas** (Vector → Loki → Grafana, alertas a ntfy; `schedule.cron` de los agentes). Planes y
+criterios: `docs/prompts/01-fase-1.md`, `docs/prompts/02-fase-2.md`. Guía de agentes: `docs/agentes.md`.
 
 ## Reglas duras (no negociables)
 1. Ollama nunca publica puertos en el host; solo existe en la red Docker `gd_ai`.
@@ -51,10 +50,17 @@ en VMs (`docs/prompts/01-fase-1.md`). Nada de auditoría (Fase 3) todavía.
 - Go: `gofmt`, `go vet ./...`, sin dependencias externas.
 - Todo cambio en compose indica qué variable cambió y la URL de la documentación consultada.
 
+## Agentes (Fase 2), en dos líneas
+- Identidad de red = IP fija en `gd_agents` (derivada del nombre); Squid y Blocky filtran por esa IP.
+  Tras tocar `egress.allow`: `sudo make render-egress`. `agent run` exige AppArmor y root.
+- Los secretos viajan como archivos `0400` desde `vault/` (age); jamás en `environment`.
+- Al probar en VMs Apple Silicon, LiteLLM también necesita `OPENSSL_armcap=0` (override fuera del repo).
+
 ## Cómo probar
 ```bash
 make up            # levanta la plataforma
-make doctor        # comprobaciones (root)
+make doctor        # 10 comprobaciones (root); incluye sonda de aislamiento en gd_agents
+sudo ./bin/guardianctl agent run hello-agent   # prueba de humo del sandbox (ver docs/agentes.md)
 make logs          # logs en vivo
 make nft-check     # valida nftables sin aplicar
 # Desde otro equipo de la LAN:

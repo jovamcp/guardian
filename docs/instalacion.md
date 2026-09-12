@@ -229,9 +229,10 @@ En el host:
 sudo make doctor
 ```
 
-Debe mostrar `[ OK ]` en las 7 comprobaciones: Docker, los 5 servicios, ningún socket del host
+Debe mostrar `[ OK ]` en las 10 comprobaciones: Docker, los 9 servicios, ningún socket del host
 en 11434, solo 443/tcp y 51820/udp publicados, la CA exportada, Ollama accesible desde el
-contenedor de Open WebUI y el certificado de 443 emitido por la CA interna.
+contenedor de Open WebUI, el certificado de 443 emitido por la CA interna, la red de agentes
+interna, una sonda en esa red sin salida a Internet y ningún agente con el socket de Docker.
 
 Desde **otro** equipo de tu LAN (necesita `nmap`):
 
@@ -281,7 +282,13 @@ Notas:
   puedes crear una entrada en la app del móvil… pero es más cómodo tener DNS de red.
 - Comprueba desde fuera (datos móviles, sin Wi-Fi) que **solo** responde 51820/udp.
 
-## 8. Operación diaria
+## 8. Agentes y API para aplicaciones
+
+Con la base funcionando, `https://api.<DOMAIN>/v1` ofrece una API compatible con OpenAI con
+llaves por aplicación, y `guardianctl agent run` ejecuta agentes aislados. Está explicado en
+[`docs/agentes.md`](agentes.md).
+
+## 9. Operación diaria
 
 ```bash
 sudo make ps        # estado
