@@ -5,12 +5,16 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const version = "0.1.0-dev"
@@ -33,7 +37,9 @@ func main() {
 		os.Exit(cmdDoctor())
 	case "version":
 		fmt.Println("guardianctl", version)
-	case "init", "policy", "agent", "key", "secret":
+	case "init":
+		os.Exit(cmdInit())
+	case "policy", "agent", "key", "secret":
 		fmt.Fprintf(os.Stderr, "guardianctl %s: pendiente (se implementa en fases posteriores)\n", os.Args[1])
 		os.Exit(1)
 	case "-h", "--help", "help":
@@ -48,10 +54,11 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, `uso: guardianctl <subcomando>
 
+  init      exporta la CA interna de Caddy a compose/certs/root.crt e imprime los siguientes pasos
   status    estado de los servicios (docker compose ps)
   doctor    comprobaciones de salud y seguridad (requiere root)
   version   versión
-  init | policy | agent | key | secret   pendientes`)
+  policy | agent | key | secret   pendientes`)
 }
 
 // repoRoot localiza la raíz del repo: directorio actual o el del binario (bin/..).
@@ -112,6 +119,8 @@ func cmdDoctor() int {
 		{"ningún socket del host escucha en 11434", checkNoHostOllama},
 		{"contenedores gd-* solo publican 443/tcp y 51820/udp", checkPublishedPorts},
 		{"existe compose/certs/root.crt", checkRootCert},
+		{"Ollama responde desde gd_ai (open-webui → http://ollama:11434/api/tags)", checkOllamaFromWebUI},
+		{"443 presenta un certificado emitido por la CA interna", checkTLSIssuedByInternalCA},
 	}
 	failed := 0
 	for _, c := range checks {
@@ -218,4 +227,117 @@ func checkRootCert(root string) error {
 		return fmt.Errorf("%s está vacío", p)
 	}
 	return nil
+}
+
+// envValue lee una variable de compose/.env (formato KEY=VALUE, sin comillas).
+func envValue(root, key string) string {
+	f, err := os.Open(filepath.Join(root, "compose", ".env"))
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if strings.HasPrefix(line, key+"=") {
+			return strings.Trim(strings.TrimPrefix(line, key+"="), `"'`)
+		}
+	}
+	return ""
+}
+
+func checkOllamaFromWebUI(root string) error {
+	out, err := run("docker", composeArgs(root, "exec", "-T", "open-webui",
+		"curl", "-sf", "-m", "5", "http://ollama:11434/api/tags")...)
+	if err != nil {
+		return fmt.Errorf("open-webui no alcanza a ollama: %v", err)
+	}
+	if !strings.Contains(out, `"models"`) {
+		return fmt.Errorf("respuesta inesperada de ollama: %.80s", out)
+	}
+	return nil
+}
+
+// checkTLSIssuedByInternalCA conecta a 127.0.0.1:443 con SNI=DOMAIN y verifica la cadena
+// contra compose/certs/root.crt (la CA interna de Caddy).
+func checkTLSIssuedByInternalCA(root string) error {
+	domain := envValue(root, "DOMAIN")
+	if domain == "" {
+		return errors.New("DOMAIN no definido en compose/.env")
+	}
+	pem, err := os.ReadFile(filepath.Join(root, "compose", "certs", "root.crt"))
+	if err != nil {
+		return err
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		return errors.New("compose/certs/root.crt no contiene un certificado PEM válido")
+	}
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	conn, err := tls.DialWithDialer(dialer, "tcp", "127.0.0.1:443", &tls.Config{
+		ServerName: domain,
+		RootCAs:    pool,
+		MinVersion: tls.VersionTLS12,
+	})
+	if err != nil {
+		return fmt.Errorf("handshake TLS con SNI %s falló: %v", domain, err)
+	}
+	defer conn.Close()
+	leaf := conn.ConnectionState().PeerCertificates[0]
+	if err := leaf.VerifyHostname(domain); err != nil {
+		return err
+	}
+	return nil
+}
+
+// cmdInit exporta la CA interna de Caddy a compose/certs/root.crt e imprime los siguientes pasos.
+func cmdInit() int {
+	root := repoRoot()
+	certDir := filepath.Join(root, "compose", "certs")
+	dst := filepath.Join(certDir, "root.crt")
+	if err := os.MkdirAll(certDir, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, "init:", err)
+		return 1
+	}
+	if _, err := run("docker", composeArgs(root, "up", "-d", "caddy")...); err != nil {
+		fmt.Fprintln(os.Stderr, "init: no se pudo levantar caddy:", err)
+		return 1
+	}
+	const src = "gd-caddy:/data/caddy/pki/authorities/local/root.crt"
+	var lastErr error
+	for i := 0; i < 30; i++ {
+		if _, lastErr = run("docker", "cp", src, dst); lastErr == nil {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+	if lastErr != nil {
+		fmt.Fprintln(os.Stderr, "init: caddy no generó la CA:", lastErr)
+		return 1
+	}
+	_ = os.Chmod(dst, 0o644)
+	fmt.Println("CA interna exportada a", dst)
+	printNextSteps(root)
+	return 0
+}
+
+func printNextSteps(root string) {
+	domain := envValue(root, "DOMAIN")
+	if domain == "" {
+		domain = "<DOMAIN>"
+	}
+	wgHost := envValue(root, "WG_HOST")
+	if wgHost == "" {
+		wgHost = "<WG_HOST>"
+	}
+	fmt.Printf(`
+Siguientes pasos:
+  1. DNS local: %s, id.%s y vpn.%s → IP de este host.
+  2. Instala la CA compose/certs/root.crt en tus dispositivos (docs/instalacion.md).
+  3. Pocket ID: https://id.%s/setup → admin con passkey y cliente OIDC "open-webui"
+     con callback https://%s/oauth/oidc/callback
+  4. Copia OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET a compose/.env y ejecuta: make restart
+  5. WireGuard: https://vpn.%s → asistente (host %s, puerto 51820) → QR para el móvil.
+  6. Comprueba: make doctor
+`, domain, domain, domain, domain, domain, domain, wgHost)
 }
