@@ -70,8 +70,9 @@ services:
     networks:
       - gd_front
     healthcheck:
-      # El admin API escucha en localhost:2019 dentro del contenedor (ver Caddyfile).
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]
+      # El admin API escucha en 127.0.0.1:2019 (Caddyfile: admin localhost:2019). Se usa la IP
+      # porque en la imagen `localhost` resuelve primero a ::1 y el check fallaba.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2019/config/"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -136,7 +137,7 @@ services:
       - gd_front
       - gd_ai
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -204,7 +205,7 @@ services:
     networks:
       - gd_front
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:51821/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:51821/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
