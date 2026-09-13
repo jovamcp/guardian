@@ -35,6 +35,14 @@ type Config struct {
 	RetentionDays int
 	NtfyURL       string
 	NtfyTopic     string
+	// backup (v0.2)
+	BackupRepo     string // ruta local o URL de restic (sftp:, s3:, rest:…); vacío = sin copias
+	BackupPassword string // vault:<ref>
+	BackupCron     string
+	BackupModels   bool // incluir ollama_data (modelos, grandes y redescargables)
+	KeepDaily      int
+	KeepWeekly     int
+	KeepMonthly    int
 }
 
 func defaultConfig() Config {
@@ -46,6 +54,8 @@ func defaultConfig() Config {
 		RuntimeKind: "ollama", RuntimeGPU: "none",
 		FWVendor: "fortios", FWParent: "internal", FWLAN: "internal", FWWAN: "wan1", FWWANIP: "0.0.0.0",
 		RetentionDays: 30, NtfyTopic: "guardian",
+		BackupPassword: "vault:backup/restic", BackupCron: "0 3 * * *",
+		KeepDaily: 7, KeepWeekly: 4, KeepMonthly: 6,
 	}
 }
 
@@ -103,6 +113,17 @@ func loadConfig(root string) (Config, error) {
 	nt := ymap(ymap(doc["alerts"])["ntfy"])
 	c.NtfyURL = str(nt["url"], "")
 	c.NtfyTopic = str(nt["topic"], c.NtfyTopic)
+	bk := ymap(doc["backup"])
+	c.BackupRepo = str(bk["repository"], "")
+	c.BackupPassword = str(bk["password"], c.BackupPassword)
+	c.BackupCron = str(bk["schedule"], c.BackupCron)
+	if v, ok := bk["include_models"].(bool); ok {
+		c.BackupModels = v
+	}
+	keep := ymap(bk["keep"])
+	c.KeepDaily = num(keep["daily"], c.KeepDaily)
+	c.KeepWeekly = num(keep["weekly"], c.KeepWeekly)
+	c.KeepMonthly = num(keep["monthly"], c.KeepMonthly)
 	if c.AIGatewayIP == "" {
 		c.AIGatewayIP = firstHost(c.AICIDR)
 	}
@@ -136,6 +157,9 @@ func (c Config) validate() error {
 	}
 	if c.FWWANIP != "" && net.ParseIP(c.FWWANIP) == nil {
 		return fmt.Errorf("firewall.wan_ip %q inválida", c.FWWANIP)
+	}
+	if c.BackupRepo != "" && !strings.HasPrefix(c.BackupPassword, "vault:") {
+		return errors.New("backup.password debe ser una referencia vault:<ref> (regla dura 6)")
 	}
 	return nil
 }
@@ -195,9 +219,22 @@ alerts:
   ntfy:
     url: %q
     topic: %s
+
+# Copias de seguridad con restic (guardianctl backup). repository vacío = desactivadas.
+# Ejemplos: /var/backups/guardian  |  sftp:user@nas:/guardian  |  s3:s3.amazonaws.com/bucket
+backup:
+  repository: %q
+  password: %s
+  schedule: %q
+  include_models: %t
+  keep:
+    daily: %d
+    weekly: %d
+    monthly: %d
 `, c.Domain, c.TZ, c.LANCIDR, c.AIVLAN, c.AICIDR, c.AIHostIP, c.AIGatewayIP,
 		c.RemoteProv, c.RemoteCIDR, c.RemoteEndp, c.RuntimeKind, c.RuntimeGPU,
-		c.FWVendor, c.FWParent, c.FWLAN, c.FWWAN, c.FWWANIP, c.RetentionDays, c.NtfyURL, c.NtfyTopic)
+		c.FWVendor, c.FWParent, c.FWLAN, c.FWWAN, c.FWWANIP, c.RetentionDays, c.NtfyURL, c.NtfyTopic,
+		c.BackupRepo, c.BackupPassword, c.BackupCron, c.BackupModels, c.KeepDaily, c.KeepWeekly, c.KeepMonthly)
 }
 
 func saveConfig(root string, c Config) error {

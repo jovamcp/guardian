@@ -41,3 +41,15 @@ alerts:
   ntfy:
     url: ""               # https://ntfy.sh o tu servidor; vacío = sin alertas
     topic: guardian
+
+# Copias de seguridad con restic (guardianctl backup). repository vacío = desactivadas.
+# Ejemplos: /var/backups/guardian  |  sftp:user@nas:/guardian  |  s3:s3.amazonaws.com/bucket
+backup:
+  repository: ""
+  password: vault:backup/restic     # echo "frase-larga" | sudo guardianctl secret set backup/restic
+  schedule: "0 3 * * *"
+  include_models: false             # ollama_data pesa GB y se redescarga
+  keep:
+    daily: 7
+    weekly: 4
+    monthly: 6

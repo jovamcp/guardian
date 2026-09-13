@@ -60,6 +60,8 @@ func main() {
 		os.Exit(cmdAgent(os.Args[2:]))
 	case "secret":
 		os.Exit(cmdSecret(os.Args[2:]))
+	case "backup":
+		os.Exit(cmdBackup(os.Args[2:]))
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -87,7 +89,9 @@ func usage() {
   agent     agent run <nombre|manifiesto.yaml> [--dry-run]   lanza un agente en el sandbox
             agent schedule apply|list|show <n>|remove <n>    schedule.cron → timers de systemd
   secret    vault cifrado con age: secret init | set <ref> | get <ref> | list | rm <ref>
-            (los manifiestos referencian secretos como vault:<ref>)`)
+            (los manifiestos referencian secretos como vault:<ref>)
+  backup    copias con restic (backup: en guardian.yaml): backup init | run | list |
+            restore [snapshot] --to <dir> | schedule apply|remove`)
 }
 
 // repoRoot localiza la raíz del repo: directorio actual o el del binario (bin/..).
@@ -156,6 +160,7 @@ func cmdDoctor() int {
 		{"solo docker-socket-proxy monta el socket de Docker (y de solo lectura)", checkDockerSockOnlyProxy},
 		{"Loki está listo e ingiere logs recientes", checkLokiIngesting},
 		{"alertas: destino ntfy configurado", checkNtfyConfigured},
+		{"copias de seguridad configuradas y recientes", checkBackupFresh},
 	}
 	failed := 0
 	for _, c := range checks {
