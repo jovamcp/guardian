@@ -1,13 +1,9 @@
-# UniFi — política de la zona de IA (pendiente)
+# UniFi — política de la zona de IA
 
-Estado: **pendiente** (previsto para v0.2). Aplicará la misma política que
-`policies/fortios/ai-zone.tmpl` mediante reglas de firewall / Zone-Based Firewall de UniFi:
+`guardianctl policy render unifi` genera una guía (`ai-zone.md.tmpl`) con los valores de tu
+`guardian.yaml` para UniFi Network con Zone-Based Firewall: red/VLAN de la zona de IA, zona `AI`,
+políticas Internal↔AI y AI→External (solo HTTPS/DNS/NTP) y el port-forward de 51820/udp.
 
-| Regla | Origen → Destino | Servicio | Acción |
-|---|---|---|---|
-| LAN-to-Guardian-HTTPS | LAN → host Guardian | 443/tcp | permitir |
-| WAN-to-Guardian-WG | Internet → host Guardian (port-forward) | 51820/udp | permitir |
-| AI-to-LAN-DENY | red IA → LAN | todo | bloquear + log |
-| AI-to-Internet | red IA → Internet | HTTPS, DNS, NTP | permitir |
-
-Requiere una red/VLAN dedicada para la zona de IA (VLAN 20 en el ejemplo).
+```bash
+sudo ./bin/guardianctl policy render unifi --out /tmp/unifi-ai-zone.md
+```

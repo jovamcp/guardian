@@ -44,5 +44,6 @@ jobs:
           cp guardian.yaml.example guardian.yaml
           ./bin/guardianctl policy render fortios > /dev/null
           ./bin/guardianctl policy render opnsense | grep -vq '{{'
+          ./bin/guardianctl policy render unifi | grep -vq '{{'
           ./bin/guardianctl policy render egress > /dev/null
           git diff --exit-code -- compose/squid/agents.conf compose/blocky/config.yml

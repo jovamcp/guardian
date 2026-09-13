@@ -104,15 +104,15 @@ func cmdPolicyRender(root, target string, args []string) int {
 			fmt.Fprintln(os.Stderr, "aviso: firewall.wan_ip no está definida en guardian.yaml; la VIP de WireGuard sale con 0.0.0.0")
 		}
 		return emit(s)
-	case "opnsense":
-		s, err := renderTemplate(root, "policies/opnsense/ai-zone.md.tmpl", firewallVars(c))
+	case "opnsense", "unifi":
+		s, err := renderTemplate(root, "policies/"+target+"/ai-zone.md.tmpl", firewallVars(c))
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "policy render opnsense:", err)
+			fmt.Fprintf(os.Stderr, "policy render %s: %v\n", target, err)
 			return 1
 		}
 		return emit(s)
 	default:
-		fmt.Fprintln(os.Stderr, "policy render: objetivos: egress | nftables | fortios | opnsense")
+		fmt.Fprintln(os.Stderr, "policy render: objetivos: egress | nftables | fortios | opnsense | unifi")
 		return 2
 	}
 }

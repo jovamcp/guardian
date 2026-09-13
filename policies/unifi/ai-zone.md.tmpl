@@ -1,0 +1,53 @@
+# UniFi — zona de IA de Guardian (generado por `guardianctl policy render unifi`)
+
+Valores tomados de `guardian.yaml`:
+
+| Parámetro | Valor |
+|---|---|
+| VLAN de la zona de IA | `{{.VLAN}}` |
+| Red de la zona de IA | `{{.AICIDR}}` (puerta de enlace `{{.GatewayIP}}`) |
+| Host Guardian | `{{.HostIP}}` |
+| LAN | `{{.LANCIDR}}` |
+| Red WireGuard | `{{.WGCIDR}}` |
+
+Aplica a UniFi Network 8/9 con **Zone-Based Firewall**. Si tu consola es anterior, usa
+*Settings → Security → Traffic & Firewall Rules* con las mismas reglas.
+
+## 1. Red y VLAN
+
+**Settings → Networks → New Virtual Network**: nombre `AI Zone`, VLAN ID `{{.VLAN}}`, Gateway
+IP/Subnet `{{.GatewayIP}}/{{cidrBits .AICIDR}}`, DHCP activado con rango corto y una **reserva
+fija** para el host Guardian en `{{.HostIP}}` (Client Devices → host → Settings → Fixed IP).
+Marca *Isolate Network* solo si no vas a crear las reglas de abajo (bloquea todo hacia otras redes).
+
+Asigna la VLAN al puerto del switch donde está el host (*Port Manager → Native VLAN: AI Zone*).
+
+## 2. Zonas (Settings → Security → Zones)
+
+Crea la zona `AI` y mueve la red `AI Zone` a ella. La LAN queda en la zona `Internal` y el
+acceso remoto (WireGuard llega al host, no a UniFi) no necesita zona propia.
+
+## 3. Políticas (Settings → Security → Policy Table)
+
+| Origen → Destino | Acción | Proto / Puerto | Descripción |
+|---|---|---|---|
+| Internal → AI | Allow | TCP 443 hacia `{{.HostIP}}` | LAN → Guardian (chat, login, panel VPN) |
+| Internal → AI | Block | any | Todo lo demás desde la LAN hacia la zona de IA |
+| AI → Internal | Block (log) | any | Sin movimiento lateral a NAS / Home Assistant |
+| AI → Gateway | Block | any salvo DNS 53 y NTP 123 | La zona no administra la consola |
+| AI → External | Allow | TCP 443, UDP/TCP 53, UDP 123 | Solo HTTPS, DNS y NTP hacia Internet |
+| AI → External | Block (log) | any | Resto del egreso |
+
+Usa **Objects** para no repetir: `GUARDIAN_HOST` = `{{.HostIP}}`, `AI_EGRESS_PORTS` = 443, 53, 123.
+
+## 4. WireGuard entrante
+
+**Settings → Security → Port Forwarding → Create**: nombre `Guardian WireGuard`, interfaz
+WAN, puerto `51820`, IP de destino `{{.HostIP}}`, puerto `51820`, protocolo **UDP**.
+Es el único puerto abierto hacia Internet; no redirijas 443.
+
+## 5. Comprobación
+
+Desde la LAN: `nmap -sT -p- {{.HostIP}}` → solo 443 (y 22 si dejas SSH). Desde un cliente en
+la zona de IA: ninguna IP de `{{.LANCIDR}}` responde. En *Insights → Flows* deben verse los
+bloqueos AI → Internal cuando un agente lo intente.

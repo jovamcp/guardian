@@ -83,7 +83,7 @@ func usage() {
               key list | key delete <sk-...>
   policy    policy render egress    allowlists de Squid y Blocky desde agents/*.yaml
             policy render nftables  define de red desde guardian.yaml
-            policy render fortios|opnsense [--out f]  política del firewall perimetral
+            policy render fortios|opnsense|unifi [--out f]  política del firewall perimetral
   agent     agent run <nombre|manifiesto.yaml> [--dry-run]   lanza un agente en el sandbox
             agent schedule apply|list|show <n>|remove <n>    schedule.cron → timers de systemd
   secret    vault cifrado con age: secret init | set <ref> | get <ref> | list | rm <ref>
