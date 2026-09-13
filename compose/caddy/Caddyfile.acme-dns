@@ -42,7 +42,7 @@ id.{$DOMAIN} {
 api.{$DOMAIN} {
 	import dnstls
 	import secure
-	reverse_proxy litellm:4000
+	reverse_proxy gateway:4000
 }
 
 logs.{$DOMAIN} {

@@ -41,7 +41,7 @@
       "type": "loki",
       "uid": "guardian-loki"
      },
-     "expr": "sum(count_over_time({service=\"litellm\", event=\"llm_request\"}[24h])) or vector(0)",
+     "expr": "sum(count_over_time({service=~\"gateway|litellm\", event=\"llm_request\"}[24h])) or vector(0)",
      "refId": "A",
      "queryType": "instant",
      "instant": true,
@@ -90,7 +90,7 @@
       "type": "loki",
       "uid": "guardian-loki"
      },
-     "expr": "sum(count_over_time({service=\"litellm\", event=\"llm_request\"} | json | status!=\"success\" [24h])) or vector(0)",
+     "expr": "sum(count_over_time({service=~\"gateway|litellm\", event=\"llm_request\"} | json | status!=\"success\" [24h])) or vector(0)",
      "refId": "A",
      "queryType": "instant",
      "instant": true,
@@ -139,7 +139,7 @@
       "type": "loki",
       "uid": "guardian-loki"
      },
-     "expr": "sum(sum_over_time({service=\"litellm\", event=\"llm_request\"} | json | unwrap completion_tokens [24h])) or vector(0)",
+     "expr": "sum(sum_over_time({service=~\"gateway|litellm\", event=\"llm_request\"} | json | unwrap completion_tokens [24h])) or vector(0)",
      "refId": "A",
      "queryType": "instant",
      "instant": true,
@@ -188,7 +188,7 @@
       "type": "loki",
       "uid": "guardian-loki"
      },
-     "expr": "sum(sum_over_time({service=\"litellm\", event=\"llm_request\"} | json | unwrap spend [24h])) or vector(0)",
+     "expr": "sum(sum_over_time({service=~\"gateway|litellm\", event=\"llm_request\"} | json | unwrap spend [24h])) or vector(0)",
      "refId": "A",
      "queryType": "instant",
      "instant": true,
@@ -237,7 +237,7 @@
       "type": "loki",
       "uid": "guardian-loki"
      },
-     "expr": "sum by (agent) (count_over_time({service=\"litellm\", event=\"llm_request\"} | json | __error__=\"\" [1h]))",
+     "expr": "sum by (agent) (count_over_time({service=~\"gateway|litellm\", event=\"llm_request\"} | json | __error__=\"\" [1h]))",
      "refId": "A",
      "queryType": "range",
      "legendFormat": "{{agent}}"
@@ -284,7 +284,7 @@
       "type": "loki",
       "uid": "guardian-loki"
      },
-     "expr": "sum by (model) (count_over_time({service=\"litellm\", event=\"llm_request\"} | json | __error__=\"\" [1h]))",
+     "expr": "sum by (model) (count_over_time({service=~\"gateway|litellm\", event=\"llm_request\"} | json | __error__=\"\" [1h]))",
      "refId": "A",
      "queryType": "range",
      "legendFormat": "{{model}}"
@@ -331,7 +331,7 @@
       "type": "loki",
       "uid": "guardian-loki"
      },
-     "expr": "sum by (agent) (sum_over_time({service=\"litellm\", event=\"llm_request\"} | json | unwrap total_tokens [24h]))",
+     "expr": "sum by (agent) (sum_over_time({service=~\"gateway|litellm\", event=\"llm_request\"} | json | unwrap total_tokens [24h]))",
      "refId": "A",
      "queryType": "instant",
      "format": "table"
@@ -374,7 +374,7 @@
       "type": "loki",
       "uid": "guardian-loki"
      },
-     "expr": "sum by (client_ip) (count_over_time({service=\"litellm\"} |= \"key not allowed\" [24h]))",
+     "expr": "sum by (client_ip) (count_over_time({service=~\"gateway|litellm\"} |= \"key not allowed\" [24h]))",
      "refId": "A",
      "queryType": "instant",
      "format": "table"
@@ -417,7 +417,7 @@
       "type": "loki",
       "uid": "guardian-loki"
      },
-     "expr": "{service=\"litellm\", event=\"llm_request\"} | json | line_format \"{{.agent}} {{.model}} {{.status}} in={{.prompt_tokens}} out={{.completion_tokens}} ${{.spend}} {{.error}}\"",
+     "expr": "{service=~\"gateway|litellm\", event=\"llm_request\"} | json | line_format \"{{.agent}} {{.model}} {{.status}} in={{.prompt_tokens}} out={{.completion_tokens}} ${{.spend}} {{.error}}\"",
      "refId": "A",
      "queryType": "range"
     }

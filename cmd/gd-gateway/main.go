@@ -16,7 +16,11 @@ var version = "dev"
 
 func main() {
 	cfgPath := flag.String("config", "/etc/gateway/config.yaml", "archivo de configuración")
+	health := flag.Bool("healthcheck", false, "comprueba /health en el propio proceso (para el healthcheck de Docker; la imagen no tiene shell)")
 	flag.Parse()
+	if *health {
+		os.Exit(selfCheck())
+	}
 	cfg, err := loadConfig(*cfgPath)
 	if err != nil {
 		log.Fatalf("config: %v", err)
@@ -29,6 +33,21 @@ func main() {
 	srv := &http.Server{Addr: cfg.Listen, Handler: g.mux(), ReadHeaderTimeout: 10 * time.Second}
 	log.Printf("gd-gateway %s escuchando en %s, %d upstream(s), auditoría → %s", version, cfg.Listen, len(cfg.Upstreams), orNone(cfg.AuditURL))
 	log.Fatal(srv.ListenAndServe())
+}
+
+// selfCheck hace GET a /health (exige al menos un upstream sano) en el puerto local.
+func selfCheck() int {
+	port := os.Getenv("GATEWAY_PORT")
+	if port == "" {
+		port = "4000"
+	}
+	c := &http.Client{Timeout: 4 * time.Second}
+	resp, err := c.Get("http://127.0.0.1:" + port + "/health")
+	if err != nil || resp.StatusCode != 200 {
+		return 1
+	}
+	resp.Body.Close()
+	return 0
 }
 
 func orNone(s string) string {

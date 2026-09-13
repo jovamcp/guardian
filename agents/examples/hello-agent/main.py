@@ -12,7 +12,7 @@ def read_secret(name: str) -> str:
 
 def main() -> int:
     ok = True
-    base = os.environ.get("OPENAI_BASE_URL", "http://litellm:4000/v1")
+    base = os.environ.get("OPENAI_BASE_URL", "http://gateway:4000/v1")
     model = os.environ.get("GUARDIAN_MODEL", "qwen2.5:0.5b")
     key = read_secret("llm_key")
 

@@ -21,11 +21,8 @@
 #               (imagen :15, UI en 51821/tcp, WireGuard 51820/udp, sin WG_HOST: asistente web
 #               en el primer arranque o variables INIT_*; requiere /lib/modules:ro)
 #   - Caddy: https://caddyserver.com/docs/caddyfile/directives/tls (tls internal)
-#   - LiteLLM (Fase 2): https://docs.litellm.ai/docs/proxy/deploy (imagen fijada por versión,
-#                puerto 4000, --config, DATABASE_URL/LITELLM_MASTER_KEY/LITELLM_SALT_KEY,
-#                /health/liveliness y /health/readiness),
-#                https://docs.litellm.ai/docs/proxy/virtual_keys (llaves virtuales exigen Postgres),
-#                https://docs.litellm.ai/docs/providers/ollama (prefijo ollama_chat/)
+#   - gd-gateway (v0.3): cmd/gd-gateway (propio; sustituye a LiteLLM y Postgres). Ollama expone
+#                /v1 compatible con OpenAI: https://github.com/ollama/ollama/blob/main/docs/openai.md
 #   - Blocky (Fase 2): https://0xerr0r.github.io/blocky/latest/configuration/ (denylists/allowlists
 #                por grupo, clientGroupsBlock por IP, blockType, ports.dns/http; imagen
 #                ghcr.io/0xerr0r/blocky:vX.Y.Z)
@@ -90,7 +87,7 @@ volumes:
   open_webui_data:
   ollama_data:
   wg_easy_data:
-  litellm_db_data:
+  gateway_data:
   loki_data:
   grafana_data:
   vector_data:
@@ -235,63 +232,42 @@ services:
     #   - /dev/kfd
     #   - /dev/dri
 
-  # ---------------------------------------------------------------- Fase 2: gateway LLM
-  litellm-db:
-    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
-    container_name: gd-litellm-db
+  # ---------------------------------------------------------------- gateway LLM (v0.3)
+  gateway:
+    # Imagen propia (cmd/gd-gateway) construida en local desde bases por digest; sin publicar.
+    build:
+      context: ..
+      dockerfile: compose/gateway/Dockerfile
+      args:
+        VERSION: ${GUARDIAN_VERSION:-dev}
+    image: guardian/gd-gateway:local
+    container_name: gd-gateway
     restart: unless-stopped
     logging: *default-logging
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     environment:
-      POSTGRES_USER: litellm
-      POSTGRES_PASSWORD: ${LITELLM_DB_PASSWORD}
-      POSTGRES_DB: litellm
       TZ: ${TZ}
+      GATEWAY_MASTER_KEY: ${GATEWAY_MASTER_KEY}
+      # Credenciales de upstreams cloud (opcional): GATEWAY_UPSTREAM_<NOMBRE>_KEY en compose/.env.
+      GATEWAY_UPSTREAM_OPENAI_KEY: ${GATEWAY_UPSTREAM_OPENAI_KEY:-}
     volumes:
-      - litellm_db_data:/var/lib/postgresql/data
+      - ./gateway/config.yaml:/etc/gateway/config.yaml:ro
+      - gateway_data:/data
     networks:
-      - gd_ai
+      gd_front: {}          # Caddy publica api.<DOMAIN>; salida a Internet para upstreams cloud
+      gd_ai: {}             # Ollama local
+      gd_agents:            # los agentes llaman a http://gateway:4000 con su llave virtual
+        ipv4_address: 172.28.30.10
+      gd_audit: {}          # eventos de auditoría hacia Vector
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      # Imagen distroless: sin shell. /health/liveliness responde siempre; /health exige un upstream sano.
+      test: ["CMD", "/gd-gateway", "--healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
-
-  litellm:
-    # Versión fijada (regla dura 4; la doc de LiteLLM desaconseja tags móviles).
-    image: ghcr.io/berriai/litellm:v1.100.1@sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf
-    container_name: gd-litellm
-    restart: unless-stopped
-    logging: *default-logging
-    depends_on:
-      litellm-db:
-        condition: service_healthy
-    command: ["--config", "/app/config.yaml", "--port", "4000"]
-    environment:
-      TZ: ${TZ}
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
-      # Cifra credenciales guardadas en la base de datos. Se fija una vez y no se cambia.
-      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
-      DATABASE_URL: postgresql://litellm:${LITELLM_DB_PASSWORD}@litellm-db:5432/litellm
-      # Los modelos vienen del archivo, no de la base de datos ni de la UI.
-      STORE_MODEL_IN_DB: "False"
-      LITELLM_LOG: INFO
-      # Auditoría: un evento JSON por petición (alias de llave, modelo, tokens, coste) hacia Vector.
-      GENERIC_LOGGER_ENDPOINT: http://vector:8687/litellm
-    volumes:
-      - ./litellm/config.yaml:/app/config.yaml:ro
-    networks:
-      gd_front: {}          # Caddy publica api.<DOMAIN>
-      gd_ai: {}             # Ollama y Postgres
-      gd_agents:            # los agentes llaman a http://litellm:4000 con su llave virtual
-        ipv4_address: 172.28.30.10
-      gd_audit: {}          # eventos de auditoría por petición hacia Vector (Fase 3)
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=5)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 90s
+      start_period: 15s
 
   # ---------------------------------------------------------------- Fase 2: egreso de agentes
   blocky:
@@ -400,7 +376,8 @@ services:
       VECTOR_CONFIG: /etc/vector/vector.yaml
       DOCKER_HOST: http://docker-socket-proxy:2375
     volumes:
-      - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
+      # Directorio, no archivo suelto: al reemplazar vector.yaml el contenedor vería el inodo antiguo.
+      - ./vector:/etc/vector:ro
       - vector_data:/var/lib/vector
       # Descartes de nftables (kernel) vía journald, solo lectura.
       - /var/log/journal:/var/log/journal:ro

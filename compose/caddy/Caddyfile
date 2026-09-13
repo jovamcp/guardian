@@ -40,11 +40,11 @@ vpn.{$DOMAIN} {
 	reverse_proxy wg-easy:51821
 }
 
-# LiteLLM (API compatible con OpenAI para apps y agentes; llaves virtuales)
+# gd-gateway (API compatible con OpenAI para apps y agentes; llaves virtuales)
 api.{$DOMAIN} {
 	tls internal
 	import secure
-	reverse_proxy litellm:4000
+	reverse_proxy gateway:4000
 }
 
 # Grafana (auditoría; login OIDC con Pocket ID)

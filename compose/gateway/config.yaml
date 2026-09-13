@@ -1,0 +1,34 @@
+# Configuración de gd-gateway (compatible con OpenAI). La master key viene de compose/.env
+# (GATEWAY_MASTER_KEY); las llaves virtuales se crean con `guardianctl key create`.
+listen: ":4000"
+data_dir: /data
+audit_url: http://vector:8687/llm
+default_rpm: 60
+
+# Nodos. Añade un segundo mini-PC con Ollama en la zona de IA (o por WireGuard) con otra entrada
+# y permite en su firewall el 11434 solo desde este host. "*" descubre los modelos de Ollama.
+upstreams:
+  - name: ollama
+    type: ollama
+    url: http://ollama:11434
+    models: ["*"]
+  # - name: node2
+  #   type: ollama
+  #   url: http://10.20.0.11:11434
+  #   models: ["*"]
+  #   weight: 2
+
+  # Cloud burst controlado: cualquier API compatible con OpenAI. Solo las llaves creadas con
+  # --cloud pueden usar estos modelos; el gasto se mide con los precios (USD por millón de tokens).
+  # La credencial va en compose/.env (GATEWAY_UPSTREAM_OPENAI_KEY=sk-...).
+  # - name: openai
+  #   type: openai
+  #   url: https://api.openai.com
+  #   api_key_env: GATEWAY_UPSTREAM_OPENAI_KEY
+  #   cloud: true
+  #   models: [gpt-4o-mini]
+  #   prices:
+  #     gpt-4o-mini: {input: 0.15, output: 0.60}
+
+budget:
+  cloud_monthly_usd: 10     # tope global mensual para modelos cloud (0 = sin límite)

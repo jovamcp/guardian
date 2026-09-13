@@ -22,7 +22,7 @@ const (
 
 // Volúmenes por servicio; ollama_data solo con include_models.
 var backupVolumes = []string{"caddy_data", "caddy_config", "pocket_id_data", "open_webui_data",
-	"wg_easy_data", "grafana_data", "loki_data", "vector_data"}
+	"wg_easy_data", "grafana_data", "loki_data", "vector_data", "gateway_data"}
 
 func resticEnv(root string, c Config) ([]string, error) {
 	if c.BackupRepo == "" {
@@ -129,7 +129,7 @@ Recuperado en %s. Para volver a un host:
   1. Copia %s/stage/guardian.yaml y compose/.env al repo y vault/ y compose/certs/ a su sitio.
   2. Con la plataforma parada (sudo make down):
        for v in volumes/*.tgz: docker run --rm -v guardian_<vol>:/dst -v %s/stage/volumes:/src busybox tar xzf /src/<vol>.tgz -C /dst
-  3. Base de datos de LiteLLM: docker compose up -d litellm-db && zcat litellm.sql.gz | docker exec -i gd-litellm-db psql -U litellm litellm
+  3. Las llaves del gateway viajan en volumes/gateway_data.tgz (paso 2).
   4. sudo make up && sudo make doctor
 `, to, to, to)
 		return 0
@@ -162,21 +162,23 @@ func backupRun(root string, c Config, env []string) int {
 			return 1
 		}
 	}
-	// 2. Base de datos de LiteLLM con pg_dump (consistente sin parar nada).
-	dump, err := run("docker", "exec", "gd-litellm-db", "pg_dump", "-U", "litellm", "--no-owner", "litellm")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "pg_dump de litellm-db:", err)
-		return 1
+	// 2. (instalaciones anteriores a v0.3) pg_dump de LiteLLM si el contenedor aún existe.
+	if _, err := run("docker", "inspect", "gd-litellm-db"); err == nil {
+		dump, err := run("docker", "exec", "gd-litellm-db", "pg_dump", "-U", "litellm", "--no-owner", "litellm")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "pg_dump de litellm-db:", err)
+			return 1
+		}
+		gz := exec.Command("gzip", "-c")
+		gz.Stdin = strings.NewReader(dump)
+		f, _ := os.Create(filepath.Join(stage, "litellm.sql.gz"))
+		gz.Stdout = f
+		if err := gz.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, "gzip:", err)
+			return 1
+		}
+		f.Close()
 	}
-	gz := exec.Command("gzip", "-c")
-	gz.Stdin = strings.NewReader(dump)
-	f, _ := os.Create(filepath.Join(stage, "litellm.sql.gz"))
-	gz.Stdout = f
-	if err := gz.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "gzip:", err)
-		return 1
-	}
-	f.Close()
 	// 3. Volúmenes Docker como tar (solo lectura, contenedor efímero sin red).
 	vols := backupVolumes
 	if c.BackupModels {

@@ -105,6 +105,44 @@ groups:
               expression: B
               conditions:
                 - evaluator: {type: gt, params: [4]}
+      - uid: guardian-cloud-budget
+        title: "Gasto cloud al 80 % del presupuesto"
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          source: gateway
+        annotations:
+          summary: "El gasto mensual en modelos cloud ha superado el 80 % del presupuesto"
+          description: "gd-gateway ha emitido un aviso de presupuesto. Revisa Guardian · LLM y /admin/usage."
+        data:
+          - refId: A
+            relativeTimeRange: {from: 3600, to: 0}
+            datasourceUid: guardian-loki
+            model:
+              refId: A
+              expr: 'sum(count_over_time({service="gateway", event="budget"}[1h])) or vector(0)'
+              queryType: instant
+              instant: true
+              range: false
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              reducer: last
+              expression: A
+              settings: {mode: dropNN}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: {type: gt, params: [0]}
       - uid: guardian-firewall-forward
         title: "Tráfico descartado hacia servicios publicados"
         condition: C

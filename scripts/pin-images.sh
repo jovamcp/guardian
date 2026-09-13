@@ -6,7 +6,8 @@
 set -euo pipefail
 COMPOSE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/compose/docker-compose.yml"
 if [[ "${1:-}" == "--check" ]]; then
-	missing=$(grep -E '^[[:space:]]+image:' "${COMPOSE}" | grep -v '@sha256:' || true)
+	# Las imágenes propias (guardian/*:local) se construyen desde bases ya fijadas en su Dockerfile.
+	missing=$(grep -E '^[[:space:]]+image:' "${COMPOSE}" | grep -v '@sha256:' | grep -v 'image: guardian/' || true)
 	if [[ -n "${missing}" ]]; then
 		echo "imágenes sin digest:"; echo "${missing}"; exit 1
 	fi
@@ -35,6 +36,6 @@ s=s.replace(line+"\n", f"{indent}image: {new}\n",1)
 open(path,"w").write(s)
 PY
 	fi
-done < <(grep -E '^[[:space:]]+image:' "${COMPOSE}")
+done < <(grep -E '^[[:space:]]+image:' "${COMPOSE}" | grep -v 'image: guardian/')
 cp "${tmp}" "${COMPOSE}"
 echo "compose fijado por digest: ${COMPOSE}"

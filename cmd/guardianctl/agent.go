@@ -97,9 +97,9 @@ func cmdAgent(args []string) int {
 				break
 			}
 			alias := fmt.Sprintf("%s-%d", m.Name, time.Now().Unix())
-			code, out, err := litellmCall(root, http.MethodPost, "/key/generate", map[string]any{
-				"key_alias": alias, "models": m.Models, "duration": "1d",
-				"metadata": map[string]any{"guardian_agent": m.Name, "ephemeral": true},
+			code, out, err := gatewayCall(root, http.MethodPost, "/admin/keys", map[string]any{
+				"alias": alias, "models": m.Models, "duration": "1d",
+				"metadata": map[string]string{"guardian_agent": m.Name, "ephemeral": "true"},
 			})
 			if err != nil || code != 200 {
 				fmt.Fprintf(os.Stderr, "agent run: no se pudo crear la llave LLM (HTTP %d %v %v)\n", code, out, err)
@@ -107,7 +107,7 @@ func cmdAgent(args []string) int {
 			}
 			key := yamlmini.Str(out["key"])
 			cleanup = append(cleanup, func() {
-				litellmCall(root, http.MethodPost, "/key/delete", map[string]any{"keys": []string{key}})
+				gatewayCall(root, http.MethodDelete, "/admin/keys/"+key[:12], nil)
 			})
 			if err := writeSecret(secretsDir, "llm_key", key); err != nil {
 				fmt.Fprintln(os.Stderr, "agent run:", err)
@@ -194,18 +194,18 @@ func buildRunArgs(root string, m *Manifest, seccomp, secretsDir string) []string
 		"--cpus", firstNonEmpty(m.CPUs, "1"),
 		"--ulimit", "nofile=1024:1024",
 		"-e", "HOME=/home/agent",
-		"-e", "OPENAI_BASE_URL=http://litellm:4000/v1",
+		"-e", "OPENAI_BASE_URL=http://gateway:4000/v1",
 		"-e", "GUARDIAN_SECRETS_DIR=" + agentSecretsIn,
 		"-e", "HTTPS_PROXY=http://" + agentsProxy + ":3128",
 		"-e", "HTTP_PROXY=http://" + agentsProxy + ":3128",
 		"-e", "https_proxy=http://" + agentsProxy + ":3128",
 		"-e", "http_proxy=http://" + agentsProxy + ":3128",
-		"-e", "NO_PROXY=litellm," + agentsLLM + ",localhost,127.0.0.1",
-		"-e", "no_proxy=litellm," + agentsLLM + ",localhost,127.0.0.1",
+		"-e", "NO_PROXY=gateway,litellm," + agentsLLM + ",localhost,127.0.0.1",
+		"-e", "no_proxy=gateway,litellm," + agentsLLM + ",localhost,127.0.0.1",
 	}
 	// El gateway se resuelve por /etc/hosts: bajo gVisor el DNS embebido de Docker (127.0.0.11)
 	// no es alcanzable desde la netstack del sandbox y "litellm" no resolvería. La IP es fija.
-	args = append(args, "--add-host", "litellm:"+agentsLLM)
+	args = append(args, "--add-host", "gateway:"+agentsLLM, "--add-host", "litellm:"+agentsLLM)
 	if m.Runtime == "gvisor" {
 		// gVisor intercepta las syscalls con su propio kernel en espacio de usuario; el perfil
 		// seccomp y AppArmor del host se siguen pasando (runsc los acepta o los ignora sin fallar).

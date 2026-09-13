@@ -19,12 +19,11 @@ sources:
     include_matches:
       _TRANSPORT: ["kernel"]
 
-  # LiteLLM envía un POST JSON (lista de StandardLoggingPayload) por petición
-  # (GENERIC_LOGGER_ENDPOINT=http://vector:8687/litellm, callback generic_api).
+  # gd-gateway envía un POST JSON (lista de eventos) por petición a /llm (audit_url).
   litellm_events:
     type: http_server
     address: 0.0.0.0:8687
-    path: /litellm
+    path: /llm
     decoding:
       codec: json
 
@@ -124,8 +123,8 @@ transforms:
     type: remap
     inputs: [litellm_events]
     source: |
-      .service = "litellm"
-      .event = "llm_request"
+      .service = "gateway"
+      .event = if exists(.event) && .event == "budget" { "budget" } else { "llm_request" }
       .key_alias = .metadata.user_api_key_alias
       .agent = .metadata.user_api_key_alias
       .client_ip = .metadata.requester_ip_address
@@ -136,7 +135,7 @@ transforms:
       # (LiteLLM ya los redacta con turn_off_message_logging; por si acaso).
       only = ["timestamp", "service", "event", "key_alias", "agent", "client_ip", "model", "call_type",
               "status", "error", "spend", "prompt_tokens", "completion_tokens", "total_tokens",
-              "startTime", "endTime", "id", "cache_hit"]
+              "startTime", "endTime", "id", "cache_hit", "upstream", "cloud", "http_status", "latency_ms"]
       . = filter(.) -> |k, _| { includes(only, k) }
 
 sinks:

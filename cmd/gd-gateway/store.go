@@ -121,7 +121,11 @@ func (s *Store) CreateKey(alias string, models []string, rpm int, budget float64
 		k.ExpiresAt = k.CreatedAt.Add(ttl)
 	}
 	s.keys = append(s.keys, k)
-	return k, secret, writeAtomic(filepath.Join(s.dir, "keys.json"), s.keys)
+	if err := writeAtomic(filepath.Join(s.dir, "keys.json"), s.keys); err != nil {
+		s.keys = s.keys[:len(s.keys)-1] // no dejar en memoria una llave que no se pudo persistir
+		return nil, "", err
+	}
+	return k, secret, nil
 }
 
 func (s *Store) Lookup(secret string) *Key {

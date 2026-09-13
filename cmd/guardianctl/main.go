@@ -27,7 +27,7 @@ var version = "dev"
 
 // Servicios que deben estar en ejecución (nombres de servicio del compose).
 var requiredServices = []string{"caddy", "pocket-id", "open-webui", "ollama", "wg-easy",
-	"litellm-db", "litellm", "blocky", "squid",
+	"gateway", "blocky", "squid",
 	"docker-socket-proxy", "vector", "loki", "grafana"}
 
 // errWarn marca una comprobación que no debe hacer fallar al doctor (aviso).
@@ -83,7 +83,7 @@ func usage() {
             doctor schedule apply|remove (timer cada 15 min con --report)
   version   versión
   key       llaves virtuales del gateway LiteLLM:
-              key create --name <agente> --models m1,m2 [--budget USD] [--rpm N] [--duration 30d]
+              key create --name <agente> --models m1,m2 [--rpm N] [--budget USD] [--cloud] [--duration 30d]
               key list | key delete <sk-...>
   policy    policy render egress    allowlists de Squid y Blocky desde agents/*.yaml
             policy render nftables  define de red desde guardian.yaml
@@ -187,7 +187,7 @@ func cmdDoctor(args []string) int {
 	root := repoRoot()
 	checks := []check{
 		{"docker disponible", checkDocker},
-		{"los 13 servicios en ejecución", checkServicesRunning},
+		{"los 12 servicios en ejecución", checkServicesRunning},
 		{"ningún socket del host escucha en 11434", checkNoHostOllama},
 		{"contenedores gd-* solo publican 443/tcp y 51820/udp", checkPublishedPorts},
 		{"existe compose/certs/root.crt", checkRootCert},
@@ -646,14 +646,15 @@ func apiClient(root string) (*http.Client, string, error) {
 	return &http.Client{Transport: tr, Timeout: 30 * time.Second}, "https://" + host, nil
 }
 
-func litellmCall(root, method, path string, body any) (int, map[string]any, error) {
+// gatewayCall habla con la API de administración de gd-gateway a través de Caddy (api.<DOMAIN>).
+func gatewayCall(root, method, path string, body any) (int, map[string]any, error) {
 	client, base, err := apiClient(root)
 	if err != nil {
 		return 0, nil, err
 	}
-	master := envValue(root, "LITELLM_MASTER_KEY")
+	master := envValue(root, "GATEWAY_MASTER_KEY")
 	if master == "" {
-		return 0, nil, errors.New("LITELLM_MASTER_KEY no definido en compose/.env")
+		return 0, nil, errors.New("GATEWAY_MASTER_KEY no definido en compose/.env (guardianctl init / install.sh lo generan)")
 	}
 	var rd io.Reader
 	if body != nil {
@@ -695,6 +696,7 @@ func cmdKey(args []string) int {
 		budget := fs.Float64("budget", 0, "presupuesto máximo en USD (0 = sin límite)")
 		rpm := fs.Int("rpm", 0, "peticiones por minuto (0 = sin límite)")
 		duration := fs.String("duration", "", "caducidad, p. ej. 30d (vacío = no caduca)")
+		cloud := fs.Bool("cloud", false, "permitir modelos cloud (upstreams cloud: true) a esta llave")
 		if err := fs.Parse(args[1:]); err != nil {
 			return 2
 		}
@@ -703,20 +705,15 @@ func cmdKey(args []string) int {
 			return 2
 		}
 		body := map[string]any{
-			"key_alias": *name,
-			"models":    strings.Split(*models, ","),
-			"metadata":  map[string]any{"guardian_agent": *name},
+			"alias":      *name,
+			"models":     strings.Split(*models, ","),
+			"rpm":        *rpm,
+			"budget_usd": *budget,
+			"cloud":      *cloud,
+			"duration":   *duration,
+			"metadata":   map[string]string{"guardian_agent": *name},
 		}
-		if *budget > 0 {
-			body["max_budget"] = *budget
-		}
-		if *rpm > 0 {
-			body["rpm_limit"] = *rpm
-		}
-		if *duration != "" {
-			body["duration"] = *duration
-		}
-		code, out, err := litellmCall(root, http.MethodPost, "/key/generate", body)
+		code, out, err := gatewayCall(root, http.MethodPost, "/admin/keys", body)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "key create:", err)
 			return 1
@@ -729,7 +726,7 @@ func cmdKey(args []string) int {
 		fmt.Fprintf(os.Stderr, "llave creada para %s (modelos: %s). Guárdala: no se vuelve a mostrar.\n", *name, *models)
 		return 0
 	case "list":
-		code, out, err := litellmCall(root, http.MethodGet, "/key/list?return_full_object=true&size=100", nil)
+		code, out, err := gatewayCall(root, http.MethodGet, "/admin/keys", nil)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "key list:", err)
 			return 1
@@ -739,22 +736,23 @@ func cmdKey(args []string) int {
 			return 1
 		}
 		keys, _ := out["keys"].([]any)
-		fmt.Printf("%-20s %-14s %-10s %s\n", "ALIAS", "TOKEN", "GASTO", "MODELOS")
+		fmt.Printf("%-20s %-14s %-6s %-9s %-6s %s\n", "ALIAS", "PREFIJO", "CLOUD", "USD/MES", "PET.", "MODELOS")
 		for _, k := range keys {
 			m, _ := k.(map[string]any)
-			alias, _ := m["key_alias"].(string)
-			token, _ := m["token"].(string)
-			if len(token) > 12 {
-				token = token[:12] + "…"
-			}
-			spend, _ := m["spend"].(float64)
+			usage, _ := m["usage"].(map[string]any)
+			usd, _ := usage["usd"].(float64)
+			reqs, _ := usage["requests"].(float64)
 			var models []string
 			if ms, ok := m["models"].([]any); ok {
 				for _, x := range ms {
 					models = append(models, fmt.Sprint(x))
 				}
 			}
-			fmt.Printf("%-20s %-14s %-10.4f %s\n", alias, token, spend, strings.Join(models, ","))
+			cloud := "no"
+			if c, _ := m["cloud"].(bool); c {
+				cloud = "sí"
+			}
+			fmt.Printf("%-20s %-14s %-6s %-9.4f %-6.0f %s\n", m["alias"], fmt.Sprint(m["prefix"])+"…", cloud, usd, reqs, strings.Join(models, ","))
 		}
 		return 0
 	case "delete":
@@ -762,16 +760,12 @@ func cmdKey(args []string) int {
 			fmt.Fprintln(os.Stderr, "uso: guardianctl key delete <sk-...|alias>")
 			return 2
 		}
-		body := map[string]any{"keys": []string{args[1]}}
-		if !strings.HasPrefix(args[1], "sk-") {
-			body = map[string]any{"key_aliases": []string{args[1]}}
-		}
-		code, out, err := litellmCall(root, http.MethodPost, "/key/delete", body)
+		code, out, err := gatewayCall(root, http.MethodDelete, "/admin/keys/"+args[1], nil)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "key delete:", err)
 			return 1
 		}
-		if code != 200 {
+		if code != 204 && code != 200 {
 			fmt.Fprintf(os.Stderr, "key delete: HTTP %d: %v\n", code, out)
 			return 1
 		}

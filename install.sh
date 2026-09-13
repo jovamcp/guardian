@@ -184,9 +184,9 @@ prepare_env() {
 	command -v openssl >/dev/null 2>&1 || apt-get install -y -qq openssl >/dev/null
 	gen_secret_if_empty WEBUI_SECRET_KEY "openssl rand -hex 32"
 	gen_secret_if_empty POCKET_ID_ENCRYPTION_KEY "openssl rand -base64 32"
-	ensure_env_var LITELLM_MASTER_KEY; gen_secret_if_empty LITELLM_MASTER_KEY "echo sk-\$(openssl rand -hex 24)"
-	ensure_env_var LITELLM_SALT_KEY;  gen_secret_if_empty LITELLM_SALT_KEY "echo sk-\$(openssl rand -hex 24)"
-	ensure_env_var LITELLM_DB_PASSWORD; gen_secret_if_empty LITELLM_DB_PASSWORD "openssl rand -hex 24"
+	ensure_env_var GATEWAY_MASTER_KEY; gen_secret_if_empty GATEWAY_MASTER_KEY "echo sk-\$(openssl rand -hex 24)"
+	ensure_env_var GATEWAY_UPSTREAM_OPENAI_KEY
+	ensure_env_var GUARDIAN_VERSION; sed -i "s|^GUARDIAN_VERSION=.*|GUARDIAN_VERSION=$(cat "${REPO_DIR}/VERSION")|" "${ENV_FILE}"
 	ensure_env_var GRAFANA_ADMIN_PASSWORD; gen_secret_if_empty GRAFANA_ADMIN_PASSWORD "openssl rand -hex 16"
 	for v in GRAFANA_OAUTH_CLIENT_ID GRAFANA_OAUTH_CLIENT_SECRET LOKI_RETENTION_PERIOD NTFY_URL NTFY_TOPIC; do ensure_env_var "$v"; done
 
@@ -221,7 +221,7 @@ export_caddy_ca() {
 start_stack() {
 	log "Levantando la plataforma…"
 	"${COMPOSE[@]}" pull --quiet --ignore-buildable 2>/dev/null || "${COMPOSE[@]}" pull --quiet
-	"${COMPOSE[@]}" up -d --build
+	"${COMPOSE[@]}" up -d --build --remove-orphans
 	# El Caddyfile va montado: si cambió, `up` no reinicia caddy. Recarga en caliente.
 	"${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || true
 	"${COMPOSE[@]}" ps
