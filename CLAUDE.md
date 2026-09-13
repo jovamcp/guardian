@@ -7,9 +7,9 @@ nftables, sandbox de agentes con egreso por allowlist y auditoría. Diseño comp
 Documentación y comentarios en español; identificadores, archivos y commits en inglés.
 
 ## Fase actual
-**Fase 3 (semanas 5–6): auditoría y alertas — en curso.** Vector → Loki → Grafana (`logs.<DOMAIN>`,
-OIDC), alertas a ntfy, `schedule.cron` con timers de systemd. Plan: `docs/prompts/03-fase-3.md`.
-Fases 1 y 2 completas y probadas en VMs (`docs/prompts/01-fase-1.md`, `02-fase-2.md`).
+**Fases 1, 2 y 3 completadas y probadas en VMs.** Siguiente: **Fase 4 (semanas 7–8)**: `guardianctl
+init` con `guardian.yaml`, `policy render fortios` (y OPNsense), imágenes por digest, docs finales
+y beta testers. Planes: `docs/prompts/0{1,2,3}-fase-*.md`. Guías: `docs/agentes.md`, `docs/auditoria.md`.
 
 ## Reglas duras (no negociables)
 1. Ollama nunca publica puertos en el host; solo existe en la red Docker `gd_ai`.
@@ -56,10 +56,15 @@ Fases 1 y 2 completas y probadas en VMs (`docs/prompts/01-fase-1.md`, `02-fase-2
 - Los secretos viajan como archivos `0400` desde `vault/` (age); jamás en `environment`.
 - Al probar en VMs Apple Silicon, LiteLLM también necesita `OPENSSL_armcap=0` (override fuera del repo).
 
+## Auditoría (Fase 3), en dos líneas
+- Solo `gd-docker-socket-proxy` monta el socket (ro, solo GET); Vector, Loki y Grafana viven en `gd_audit` (interna).
+- Todo se provisiona desde `compose/grafana/`; las reglas de alerta usan `or vector(0)` y `noDataState: OK`.
+- Al probar con Chromium headless, fija `locale` (LANG=C rompe el frontend de Grafana) y un User-Agent normal.
+
 ## Cómo probar
 ```bash
 make up            # levanta la plataforma
-make doctor        # 10 comprobaciones (root); incluye sonda de aislamiento en gd_agents
+make doctor        # 13 comprobaciones (root); sondas en gd_agents y gd_audit
 sudo ./bin/guardianctl agent run hello-agent   # prueba de humo del sandbox (ver docs/agentes.md)
 make logs          # logs en vivo
 make nft-check     # valida nftables sin aplicar

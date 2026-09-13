@@ -9,20 +9,21 @@ IA (Ollama, llama.cpp, vLLM; también sobre Umbrel o ZimaOS) y añade lo que nin
 - **Gateway LLM** compatible con OpenAI (LiteLLM) con llaves virtuales por app o agente.
 - **Sandbox de agentes** con egreso controlado por allowlist por agente (Squid + Blocky), secretos
   cifrados con `age` inyectados como archivos y perfil seccomp/AppArmor propio.
-- **Auditoría** centralizada (Fase 3).
+- **Auditoría** centralizada: Vector → Loki → Grafana con login OIDC, paneles de accesos, LLM y
+  egreso, y alertas al móvil por ntfy. Agentes programados con timers de systemd.
 
 No sustituye el runtime ni el chat: los protege. Diseño completo en [`DESIGN.md`](DESIGN.md).
 
 ## Estado
 
-**v0.1 en desarrollo. Fases 1 (base) y 2 (agentes) completadas y probadas en VMs de Debian 12
-y Ubuntu 24.04.** Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
+**v0.1 en desarrollo. Fases 1 (base), 2 (agentes) y 3 (auditoría) completadas y probadas en VMs de
+Debian 12 y Ubuntu 24.04.** Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
 Ollama aislado, wg-easy 15, nftables con persistencia, LiteLLM con llaves virtuales en
 `api.<DOMAIN>`, red interna de agentes con Squid + Blocky por allowlist, sandbox
-(seccomp/AppArmor/uid 10000/solo lectura), vault con `age` y `guardianctl`
-(`init status doctor key policy agent secret`). Aún no: auditoría y alertas (Fase 3),
-plantillas OPNsense/UniFi y `guardian.yaml` (Fase 4). Pendiente de prueba en hardware real
-x86-64 y desde un móvil fuera de casa. Guía de agentes: [`docs/agentes.md`](docs/agentes.md).
+(seccomp/AppArmor/uid 10000/solo lectura), vault con `age`, auditoría en `logs.<DOMAIN>` (Loki + Grafana con OIDC, alertas ntfy) y
+`guardianctl` (`init status doctor key policy agent secret`). Aún no: plantillas OPNsense/UniFi,
+`guardian.yaml` y `policy render fortios` (Fase 4). Pendiente de prueba en hardware real
+x86-64 y desde un móvil fuera de casa. Guías: [`docs/agentes.md`](docs/agentes.md), [`docs/auditoria.md`](docs/auditoria.md).
 
 ## Instalación rápida
 
@@ -60,7 +61,7 @@ Guía paso a paso (DNS local, instalar la CA en iOS/Android/Windows/macOS, WireG
 
 ```
 cmd/guardianctl/   CLI (Go, stdlib): init, status, doctor, key, policy, agent, secret
-compose/           docker-compose.yml, caddy/Caddyfile, certs/ (CA exportada)
+compose/           docker-compose.yml, caddy/, litellm/, squid/, blocky/, vector/, loki/, grafana/, certs/
 nftables/          firewall del host
 policies/          plantillas del firewall perimetral (fortios, opnsense, unifi)
 sandbox/           perfiles seccomp/AppArmor y runner de agentes

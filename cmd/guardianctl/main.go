@@ -26,7 +26,8 @@ const version = "0.1.0-dev"
 
 // Servicios que deben estar en ejecución (nombres de servicio del compose).
 var requiredServices = []string{"caddy", "pocket-id", "open-webui", "ollama", "wg-easy",
-	"litellm-db", "litellm", "blocky", "squid"}
+	"litellm-db", "litellm", "blocky", "squid",
+	"docker-socket-proxy", "vector", "loki", "grafana"}
 
 // errWarn marca una comprobación que no debe hacer fallar al doctor (aviso).
 type errWarn struct{ msg string }
@@ -80,6 +81,7 @@ func usage() {
   policy    policy render egress   genera compose/squid/agents.conf y compose/blocky/config.yml
                                    a partir de agents/*.yaml (allowlist por agente)
   agent     agent run <nombre|manifiesto.yaml> [--dry-run]   lanza un agente en el sandbox
+            agent schedule apply|list|show <n>|remove <n>    schedule.cron → timers de systemd
   secret    vault cifrado con age: secret init | set <ref> | get <ref> | list | rm <ref>
             (los manifiestos referencian secretos como vault:<ref>)`)
 }
@@ -138,7 +140,7 @@ func cmdDoctor() int {
 	root := repoRoot()
 	checks := []check{
 		{"docker disponible", checkDocker},
-		{"los 9 servicios en ejecución", checkServicesRunning},
+		{"los 13 servicios en ejecución", checkServicesRunning},
 		{"ningún socket del host escucha en 11434", checkNoHostOllama},
 		{"contenedores gd-* solo publican 443/tcp y 51820/udp", checkPublishedPorts},
 		{"existe compose/certs/root.crt", checkRootCert},
@@ -147,6 +149,9 @@ func cmdDoctor() int {
 		{"gd_agents es una red interna (sin ruta a Internet)", checkAgentsNetworkInternal},
 		{"un contenedor en gd_agents no alcanza Internet ni el host directamente", checkAgentsIsolation},
 		{"ningún contenedor de agente tiene el socket de Docker", checkNoDockerSockInAgents},
+		{"solo docker-socket-proxy monta el socket de Docker (y de solo lectura)", checkDockerSockOnlyProxy},
+		{"Loki está listo e ingiere logs recientes", checkLokiIngesting},
+		{"alertas: destino ntfy configurado", checkNtfyConfigured},
 	}
 	failed := 0
 	for _, c := range checks {
@@ -598,6 +603,74 @@ func checkNoDockerSockInAgents(string) error {
 	}
 	if len(bad) > 0 {
 		return fmt.Errorf("agentes con docker.sock montado: %s", strings.Join(bad, ", "))
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------- doctor (Fase 3)
+
+func checkDockerSockOnlyProxy(string) error {
+	out, err := run("docker", "ps", "-q")
+	if err != nil {
+		return err
+	}
+	ids := strings.Fields(out)
+	if len(ids) == 0 {
+		return nil
+	}
+	args := append([]string{"inspect", "--format", "{{.Name}}|{{range .Mounts}}{{.Source}}:{{.RW}} {{end}}"}, ids...)
+	out, err = run("docker", args...)
+	if err != nil {
+		return err
+	}
+	var bad []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		name, mounts, _ := strings.Cut(line, "|")
+		name = strings.TrimPrefix(name, "/")
+		for _, m := range strings.Fields(mounts) {
+			if !strings.Contains(m, "docker.sock") {
+				continue
+			}
+			if name != "gd-docker-socket-proxy" || strings.HasSuffix(m, ":true") {
+				bad = append(bad, name+" ("+m+")")
+			}
+		}
+	}
+	if len(bad) > 0 {
+		return fmt.Errorf("socket de Docker montado donde no debe: %s", strings.Join(bad, ", "))
+	}
+	return nil
+}
+
+func checkLokiIngesting(string) error {
+	if _, err := run("docker", "image", "inspect", probeImage); err != nil {
+		if _, err := run("docker", "pull", "-q", probeImage); err != nil {
+			return fmt.Errorf("no se pudo obtener la imagen de sonda %s: %v", probeImage, err)
+		}
+	}
+	out, err := run("docker", "run", "--rm", "--network", "gd_audit", "--cap-drop", "ALL", "--user", agentUID, probeImage,
+		"wget", "-q", "-O", "-", "http://loki:3100/ready")
+	if err != nil || !strings.Contains(out, "ready") {
+		return fmt.Errorf("Loki no responde ready en gd_audit: %v %s", err, strings.TrimSpace(out))
+	}
+	// Alguna línea de cualquier servicio en los últimos 15 minutos.
+	start := time.Now().Add(-15 * time.Minute).UnixNano()
+	q := fmt.Sprintf("http://loki:3100/loki/api/v1/query_range?query=%s&limit=1&start=%d",
+		"%7Bservice%3D~%22.%2B%22%7D", start)
+	out, err = run("docker", "run", "--rm", "--network", "gd_audit", "--cap-drop", "ALL", "--user", agentUID, probeImage,
+		"wget", "-q", "-O", "-", q)
+	if err != nil {
+		return fmt.Errorf("consulta a Loki falló: %v", err)
+	}
+	if !strings.Contains(out, `"values"`) {
+		return errWarn{"Loki responde pero no tiene logs de los últimos 15 minutos; revisa gd-vector"}
+	}
+	return nil
+}
+
+func checkNtfyConfigured(root string) error {
+	if envValue(root, "NTFY_URL") == "" {
+		return errWarn{"NTFY_URL vacío en compose/.env: las alertas de Grafana no llegan a ningún sitio"}
 	}
 	return nil
 }

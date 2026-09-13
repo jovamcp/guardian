@@ -229,10 +229,11 @@ En el host:
 sudo make doctor
 ```
 
-Debe mostrar `[ OK ]` en las 10 comprobaciones: Docker, los 9 servicios, ningún socket del host
+Debe mostrar `[ OK ]` en las 13 comprobaciones: Docker, los 13 servicios, ningún socket del host
 en 11434, solo 443/tcp y 51820/udp publicados, la CA exportada, Ollama accesible desde el
 contenedor de Open WebUI, el certificado de 443 emitido por la CA interna, la red de agentes
-interna, una sonda en esa red sin salida a Internet y ningún agente con el socket de Docker.
+interna, una sonda en esa red sin salida a Internet, ningún agente con el socket de Docker, el
+socket montado solo en el proxy de solo lectura, Loki ingiriendo y el destino ntfy configurado.
 
 Desde **otro** equipo de tu LAN (necesita `nmap`):
 
@@ -288,7 +289,13 @@ Con la base funcionando, `https://api.<DOMAIN>/v1` ofrece una API compatible con
 llaves por aplicación, y `guardianctl agent run` ejecuta agentes aislados. Está explicado en
 [`docs/agentes.md`](agentes.md).
 
-## 9. Operación diaria
+## 9. Auditoría y alertas
+
+Los logs de todo (logins, llamadas al modelo, egreso de agentes, firewall) se consultan en
+`https://logs.<DOMAIN>` y las alertas llegan al móvil por ntfy. Está explicado en
+[`docs/auditoria.md`](auditoria.md).
+
+## 10. Operación diaria
 
 ```bash
 sudo make ps        # estado
