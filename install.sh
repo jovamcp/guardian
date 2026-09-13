@@ -138,8 +138,10 @@ run_init() {
 		warn "Sin terminal: guardian.yaml con valores por defecto. Ajusta con: sudo ./bin/guardianctl init --domain … --lan … --ai-cidr … --ai-host …"
 		"${bin}" init --yes
 	fi
-	# shellcheck source=/dev/null
-	set -a; . "${ENV_FILE}"; set +a
+	set -a
+	# shellcheck disable=SC1090,SC1091
+	. "${ENV_FILE}"
+	set +a
 }
 
 prepare_env() {
@@ -164,8 +166,10 @@ prepare_env() {
 	ensure_env_var GRAFANA_ADMIN_PASSWORD; gen_secret_if_empty GRAFANA_ADMIN_PASSWORD "openssl rand -hex 16"
 	for v in GRAFANA_OAUTH_CLIENT_ID GRAFANA_OAUTH_CLIENT_SECRET LOKI_RETENTION_PERIOD NTFY_URL NTFY_TOPIC; do ensure_env_var "$v"; done
 
-	# shellcheck source=/dev/null
-	set -a; . "${ENV_FILE}"; set +a
+	set -a
+	# shellcheck disable=SC1090,SC1091
+	. "${ENV_FILE}"
+	set +a
 }
 
 export_caddy_ca() {
