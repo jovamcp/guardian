@@ -28,7 +28,25 @@ sources:
     decoding:
       codec: json
 
+  # guardianctl doctor --report (desde el host, por la IP de Vector en gd_audit).
+  doctor_reports:
+    type: http_server
+    address: 0.0.0.0:8688
+    path: /doctor
+    decoding:
+      codec: json
+
 transforms:
+  doctor_norm:
+    type: remap
+    inputs: [doctor_reports]
+    source: |
+      .service = "guardianctl"
+      .event = "doctor"
+      .message = "doctor ok=" + to_string!(.ok) + " warn=" + to_string!(.warn) + " failed=" + to_string!(.failed)
+      # Una línea adicional por comprobación fallida o con aviso facilita las tablas.
+      .problems = filter(array!(.checks)) -> |_, c| { c.status != "ok" }
+
   containers_norm:
     type: remap
     inputs: [containers]
@@ -124,7 +142,7 @@ transforms:
 sinks:
   loki:
     type: loki
-    inputs: [containers_norm, kernel_norm, litellm_norm]
+    inputs: [containers_norm, kernel_norm, litellm_norm, doctor_norm]
     endpoint: http://loki:3100
     encoding:
       codec: json

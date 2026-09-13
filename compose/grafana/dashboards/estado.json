@@ -1,0 +1,317 @@
+{
+ "uid": "guardian-estado",
+ "title": "Guardian · Estado",
+ "tags": [
+  "guardian",
+  "estado"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "graphTooltip": 1,
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "refresh": "5m",
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Comprobaciones OK (último doctor)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "last_over_time({service=\"guardianctl\", event=\"doctor\"} | json | unwrap ok [24h])",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "green"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Avisos",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "last_over_time({service=\"guardianctl\", event=\"doctor\"} | json | unwrap warn [24h])",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "orange"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Fallos",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "last_over_time({service=\"guardianctl\", event=\"doctor\"} | json | unwrap failed [24h])",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "red"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Informes en las últimas 24 h",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"guardianctl\", event=\"doctor\"}[24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "purple"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "table",
+   "title": "Última ejecución de doctor: comprobaciones con aviso o fallo",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 24,
+    "h": 10
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "{service=\"guardianctl\", event=\"doctor\"} | json | line_format \"{{.problems}}\"",
+     "refId": "A",
+     "queryType": "range",
+     "maxLines": 1
+    }
+   ],
+   "options": {
+    "showHeader": true
+   }
+  },
+  {
+   "type": "logs",
+   "title": "Historial de informes",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 14,
+    "w": 24,
+    "h": 10
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "{service=\"guardianctl\", event=\"doctor\"} | json | line_format \"{{.timestamp}} v{{.version}} ok={{.ok}} warn={{.warn}} failed={{.failed}}\"",
+     "refId": "A",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending",
+    "enableLogDetails": true
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Reinicios de servicios (service_error) y descartes del firewall por hora",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 24,
+    "w": 24,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum by (event) (count_over_time({event=~\"service_error|fw_drop_.*\"}[1h]))",
+     "refId": "A",
+     "queryType": "range",
+     "legendFormat": "{{event}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "bars",
+      "fillOpacity": 60
+     }
+    },
+    "overrides": []
+   }
+  }
+ ]
+}

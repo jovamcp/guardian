@@ -47,7 +47,7 @@ func main() {
 	case "status":
 		os.Exit(cmdStatus())
 	case "doctor":
-		os.Exit(cmdDoctor())
+		os.Exit(cmdDoctor(os.Args[2:]))
 	case "version":
 		fmt.Println("guardianctl", version)
 	case "init":
@@ -79,6 +79,8 @@ func usage() {
             los define de nftables, exporta la CA de Caddy e imprime los siguientes pasos
   status    estado de los servicios (docker compose ps)
   doctor    comprobaciones de salud y seguridad (requiere root)
+            doctor --json | --report (envía el resultado a Vector → panel "Guardian · Estado")
+            doctor schedule apply|remove (timer cada 15 min con --report)
   version   versión
   key       llaves virtuales del gateway LiteLLM:
               key create --name <agente> --models m1,m2 [--budget USD] [--rpm N] [--duration 30d]
@@ -153,7 +155,35 @@ type check struct {
 	fn   func(root string) error
 }
 
-func cmdDoctor() int {
+type checkResult struct {
+	Name   string `json:"name"`
+	Status string `json:"status"` // ok | warn | fail
+	Detail string `json:"detail,omitempty"`
+}
+
+type doctorReport struct {
+	Timestamp string        `json:"timestamp"`
+	Version   string        `json:"version"`
+	Host      string        `json:"host"`
+	OK        int           `json:"ok"`
+	Warn      int           `json:"warn"`
+	Failed    int           `json:"failed"`
+	Checks    []checkResult `json:"checks"`
+}
+
+func cmdDoctor(args []string) int {
+	if len(args) > 0 && args[0] == "schedule" {
+		return cmdDoctorSchedule(args[1:])
+	}
+	asJSON, report := false, false
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		case "--report":
+			report = true
+		}
+	}
 	root := repoRoot()
 	checks := []check{
 		{"docker disponible", checkDocker},
@@ -170,27 +200,122 @@ func cmdDoctor() int {
 		{"Loki está listo e ingiere logs recientes", checkLokiIngesting},
 		{"alertas: destino ntfy configurado", checkNtfyConfigured},
 		{"copias de seguridad configuradas y recientes", checkBackupFresh},
+		{"entorno de ejecución (LXC de Proxmox: nesting, tun, wireguard, AppArmor)", checkContainerHost},
 	}
-	failed := 0
+	host, _ := os.Hostname()
+	rep := doctorReport{Timestamp: time.Now().UTC().Format(time.RFC3339), Version: version, Host: host}
+	quiet := asJSON || report
 	for _, c := range checks {
 		err := c.fn(root)
 		var w errWarn
+		r := checkResult{Name: c.name, Status: "ok"}
 		switch {
 		case err == nil:
-			fmt.Printf("[ OK ] %s\n", c.name)
+			rep.OK++
+			if !quiet {
+				fmt.Printf("[ OK ] %s\n", c.name)
+			}
 		case errors.As(err, &w):
-			fmt.Printf("[WARN] %s\n       %s\n", c.name, w.msg)
+			rep.Warn++
+			r.Status, r.Detail = "warn", w.msg
+			if !quiet {
+				fmt.Printf("[WARN] %s\n       %s\n", c.name, w.msg)
+			}
 		default:
-			failed++
-			fmt.Printf("[FAIL] %s\n       %v\n", c.name, err)
+			rep.Failed++
+			r.Status, r.Detail = "fail", err.Error()
+			if !quiet {
+				fmt.Printf("[FAIL] %s\n       %v\n", c.name, err)
+			}
+		}
+		rep.Checks = append(rep.Checks, r)
+	}
+	if asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(rep)
+	}
+	if report {
+		if err := postDoctorReport(rep); err != nil {
+			fmt.Fprintln(os.Stderr, "doctor --report:", err)
+		} else if !asJSON {
+			fmt.Printf("doctor: %d ok, %d avisos, %d fallos → enviado a Vector\n", rep.OK, rep.Warn, rep.Failed)
 		}
 	}
-	if failed > 0 {
-		fmt.Printf("\ndoctor: %d comprobación(es) fallida(s)\n", failed)
+	if rep.Failed > 0 {
+		if !quiet {
+			fmt.Printf("\ndoctor: %d comprobación(es) fallida(s)\n", rep.Failed)
+		}
 		return 1
 	}
-	fmt.Println("\ndoctor: todo correcto")
+	if !quiet {
+		fmt.Println("\ndoctor: todo correcto")
+	}
 	return 0
+}
+
+// postDoctorReport envía el informe al http_server de Vector (puerto 8688, ruta /doctor) usando
+// la IP del contenedor en gd_audit: el host llega a las redes internas por su bridge.
+func postDoctorReport(rep doctorReport) error {
+	ip, err := run("docker", "inspect", "gd-vector", "--format", "{{(index .NetworkSettings.Networks \"gd_audit\").IPAddress}}")
+	if err != nil {
+		return fmt.Errorf("IP de gd-vector: %v", err)
+	}
+	ip = strings.TrimSpace(ip)
+	body, _ := json.Marshal(rep)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post("http://"+ip+":8688/doctor", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("Vector respondió %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func cmdDoctorSchedule(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "uso: guardianctl doctor schedule apply | remove")
+		return 2
+	}
+	if os.Geteuid() != 0 {
+		fmt.Fprintln(os.Stderr, "doctor schedule: requiere root")
+		return 1
+	}
+	const sName, tName = "guardian-doctor.service", "guardian-doctor.timer"
+	root := repoRoot()
+	switch args[0] {
+	case "apply":
+		exe, _ := os.Executable()
+		service := fmt.Sprintf("# Generado por guardianctl doctor schedule.\n[Unit]\nDescription=Guardian doctor (informe al panel de estado)\nAfter=docker.service\nRequires=docker.service\n\n[Service]\nType=oneshot\nWorkingDirectory=%s\nExecStart=%s doctor --report\nSuccessExitStatus=1\nTimeoutStartSec=10m\n", root, exe)
+		timer := "# Generado por guardianctl doctor schedule.\n[Unit]\nDescription=Planificación de guardian doctor\n\n[Timer]\nOnBootSec=5m\nOnUnitActiveSec=15m\nRandomizedDelaySec=1m\nUnit=" + sName + "\n\n[Install]\nWantedBy=timers.target\n"
+		if err := os.WriteFile(filepath.Join(unitDir, sName), []byte(service), 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		if err := os.WriteFile(filepath.Join(unitDir, tName), []byte(timer), 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		exec.Command("systemctl", "daemon-reload").Run()
+		if out, err := exec.Command("systemctl", "enable", "--now", tName).CombinedOutput(); err != nil {
+			fmt.Fprintln(os.Stderr, string(out))
+			return 1
+		}
+		fmt.Println("timer guardian-doctor habilitado (cada 15 min, informe a Vector → Grafana · Estado)")
+		return 0
+	case "remove":
+		exec.Command("systemctl", "disable", "--now", tName).Run()
+		os.Remove(filepath.Join(unitDir, tName))
+		os.Remove(filepath.Join(unitDir, sName))
+		exec.Command("systemctl", "daemon-reload").Run()
+		fmt.Println("timer guardian-doctor eliminado")
+		return 0
+	default:
+		return 2
+	}
 }
 
 func checkDocker(string) error {
@@ -367,6 +492,8 @@ func cmdInit(args []string) int {
 	fs.IntVar(&c.RetentionDays, "retention-days", c.RetentionDays, "días de retención de logs")
 	fs.StringVar(&c.NtfyURL, "ntfy-url", c.NtfyURL, "servidor ntfy (vacío = sin alertas)")
 	fs.StringVar(&c.NtfyTopic, "ntfy-topic", c.NtfyTopic, "topic de ntfy")
+	fs.StringVar(&c.BackupRepo, "backup-repo", c.BackupRepo, "repositorio restic (ruta, sftp:, s3:…); vacío = sin copias")
+	fs.StringVar(&c.BackupCron, "backup-schedule", c.BackupCron, "cron de las copias (0 3 * * *)")
 	fs.StringVar(&c.TLSMode, "tls-mode", c.TLSMode, "internal | acme-dns (dominio público con DNS-01)")
 	fs.StringVar(&c.DNSProvider, "dns-provider", c.DNSProvider, "cloudflare | duckdns (con acme-dns)")
 	fs.StringVar(&c.ACMEEmail, "acme-email", c.ACMEEmail, "correo para Let's Encrypt (con acme-dns)")
@@ -796,4 +923,33 @@ func checkNtfyConfigured(root string) error {
 		return errWarn{"NTFY_URL vacío en compose/.env: las alertas de Grafana no llegan a ningún sitio"}
 	}
 	return nil
+}
+
+// checkContainerHost: si Guardian corre dentro de un contenedor LXC (Proxmox), comprueba lo que
+// el sandbox y WireGuard necesitan del host. En metal o VM no aplica.
+func checkContainerHost(string) error {
+	env, _ := os.ReadFile("/proc/1/environ")
+	inLXC := strings.Contains(string(env), "container=lxc")
+	if !inLXC {
+		if raw, err := os.ReadFile("/proc/1/cgroup"); err == nil && strings.Contains(string(raw), "/lxc/") {
+			inLXC = true
+		}
+	}
+	if !inLXC {
+		return nil
+	}
+	var problems []string
+	if _, err := os.Stat("/dev/net/tun"); err != nil {
+		problems = append(problems, "falta /dev/net/tun (wg-easy): añade lxc.cgroup2.devices.allow y lxc.mount.entry para tun")
+	}
+	if out, err := run("sh", "-c", "modprobe wireguard 2>/dev/null; grep -qw wireguard /proc/modules && echo ok"); err != nil || !strings.Contains(out, "ok") {
+		problems = append(problems, "módulo wireguard no cargado: cárgalo en el HOST Proxmox (modprobe wireguard) y persístelo en /etc/modules")
+	}
+	if _, err := os.Stat("/sys/kernel/security/apparmor"); err != nil {
+		problems = append(problems, "AppArmor no visible dentro del contenedor: el sandbox de agentes lo exige (lxc.apparmor.profile / nesting)")
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("LXC detectado; %s (ver docs/proxmox-lxc.md)", strings.Join(problems, "; "))
+	}
+	return errWarn{"LXC detectado: nesting, tun, wireguard y AppArmor presentes. Recuerda que el contenedor debe ser privilegiado o tener keyctl/nesting activados (docs/proxmox-lxc.md)"}
 }
