@@ -30,6 +30,8 @@ estado, Proxmox LXC). Antes de cada release: `make pin-images && make release`; 
   Dominio real con DNS challenge en v0.2.
 - `guardianctl` en Go, solo biblioteca estándar.
 - Redes de ejemplo: LAN 10.10.10.0/24; zona de IA VLAN 20, 10.20.0.0/24, host 10.20.0.10; WireGuard 10.8.0.0/24.
+- Gateway LLM: `cmd/gd-gateway` (propio, stdlib); `compose/gateway/config.yaml` declara nodos y cloud;
+  llaves con `guardianctl key`; master key solo para /admin. Sin LiteLLM ni Postgres desde v0.3.
 - Versiones verificadas (2026-09): Pocket ID v2.14 (exige `ENCRYPTION_KEY`; los clientes OIDC nacen
   restringidos por grupo), Open WebUI `main`/0.11 (redirect URI `/oauth/oidc/callback`;
   `ENABLE_LOGIN_FORM` y `ENABLE_SIGNUP` son PersistentConfig: solo se leen en el primer arranque),

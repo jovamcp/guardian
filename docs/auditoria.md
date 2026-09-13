@@ -10,7 +10,7 @@ Grafana y avisa al móvil cuando pasa algo que debes mirar.
 |---|---|---|
 | `login_authorize`, `login_token`, `auth_error` | Pocket ID | Inicio de sesión OIDC (autorización y canje del código) y errores de autenticación |
 | `http_access` | Caddy | Cada petición HTTPS a `<DOMAIN>`, `id.`, `api.`, `vpn.`, `logs.` (host, ruta, estado, IP) |
-| `llm_request` | LiteLLM | Cada llamada al gateway: alias de la llave, modelo, tokens, coste, estado. **Nunca prompts ni respuestas** |
+| `llm_request`, `budget` | gd-gateway | Cada llamada al gateway: alias de la llave, modelo, nodo, `cloud`, tokens, coste, estado; aviso de presupuesto. **Nunca prompts ni respuestas** |
 | `egress_allowed`, `egress_denied` | Squid | Decisión del proxy para cada `CONNECT` de un agente (IP del agente y destino) |
 | `dns_blocked`, `dns_resolved` | Blocky | Consultas DNS de los agentes y si se bloquearon |
 | `fw_drop_input`, `fw_drop_forward` | nftables (kernel) | Paquetes descartados hacia el host o hacia puertos publicados |
@@ -21,7 +21,7 @@ Cómo llega a Loki:
 1. **docker-socket-proxy** es el único contenedor que ve `/var/run/docker.sock` (montado de solo
    lectura) y solo deja pasar `GET` de contenedores, logs y eventos. Vive en la red interna `gd_audit`.
 2. **Vector** lee los logs de los contenedores a través de ese proxy, el journal del kernel
-   (montaje de solo lectura) y un webhook interno al que LiteLLM envía un evento por petición.
+   (montaje de solo lectura) y un webhook interno al que gd-gateway envía un evento por petición.
    Normaliza cada línea (`service`, `event`, `client_ip`, `destination`, …) y la envía a **Loki**.
 3. **Loki** guarda en disco (`loki_data`) con retención por compactor.
 4. **Grafana** (`https://logs.<DOMAIN>`) consulta Loki. Login solo con **Pocket ID**; los miembros
@@ -81,8 +81,8 @@ LLM efímera y sus secretos, como una ejecución manual.
 
 ## Privacidad y límites
 
-- LiteLLM envía a Vector solo metadatos (`turn_off_message_logging`); ni prompts ni respuestas
-  salen del gateway. Vector además filtra los campos a una lista blanca.
+- gd-gateway envía a Vector solo metadatos; ni prompts ni respuestas salen del gateway. Vector
+  además filtra los campos a una lista blanca.
 - Los logs de Caddy incluyen IP de origen, host y ruta; no cuerpos ni cabeceras.
 - Loki no tiene autenticación propia: solo es alcanzable desde `gd_audit` (Vector, Grafana) y por
   la sonda de `doctor`. No lo expongas.

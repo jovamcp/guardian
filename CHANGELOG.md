@@ -2,6 +2,28 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Versionado semántico.
 
+## [0.3.0] — sin publicar
+
+### Añadido
+- **gd-gateway**: gateway propio en Go (stdlib) compatible con OpenAI que sustituye a LiteLLM y
+  Postgres. Llaves virtuales (`guardianctl key`), modelos por llave, límite rpm, streaming,
+  auditoría de metadatos, API de administración, ~5 MB de RAM.
+- **Multi-nodo**: varios nodos Ollama por modelo con salud, reparto ponderado y failover;
+  `doctor` avisa de nodos caídos.
+- **Cloud burst controlado**: upstreams compatibles con OpenAI marcados `cloud`, permiso por
+  llave (`--cloud`), presupuesto mensual por llave y global con tabla de precios, `402` al
+  agotarlo y alerta ntfy al 80 %.
+- `docs/gateway.md` (uso, nodos, cloud, migración desde v0.2).
+
+### Cambiado
+- `api.<DOMAIN>` y `http://gateway:4000/v1` apuntan al gateway; los agentes usan `gateway`
+  (antes `litellm`). `GATEWAY_MASTER_KEY` reemplaza a `LITELLM_*` en `.env`.
+- Los directorios `compose/vector` y `compose/gateway` se montan enteros (inodos al reemplazar).
+- Las copias incluyen `gateway_data`; el `pg_dump` solo se hace si aún existe LiteLLM.
+
+### Eliminado
+- Servicios `litellm` y `litellm-db`; `compose/litellm/`. Las llaves de LiteLLM no se migran.
+
 ## [0.2.0] — 2026-09-12
 
 ### Añadido

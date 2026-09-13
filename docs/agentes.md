@@ -8,7 +8,7 @@ por dentro; lo que garantiza es lo que puede tocar por fuera.
 
 | Recurso | Cómo llega | Quién lo limita |
 |---|---|---|
-| Modelo LLM | `http://litellm:4000/v1` con **su** llave virtual (archivo `/run/guardian/secrets/llm_key`) | LiteLLM: solo los `llm.models` del manifiesto, con cuota opcional |
+| Modelo LLM | `http://gateway:4000/v1` con **su** llave virtual (archivo `/run/guardian/secrets/llm_key`) | gd-gateway: solo los `llm.models` del manifiesto; rpm y presupuesto opcionales |
 | Internet | Solo HTTPS por el proxy `HTTPS_PROXY=http://172.28.30.3:3128` | Squid: solo `CONNECT` a los dominios de `egress.allow`; nada en claro, nada a IPs privadas |
 | DNS | `172.28.30.53` (Blocky) | Solo resuelve los dominios de `egress.allow`; el resto `NXDOMAIN` |
 | Secretos | Archivos `0400` en `/run/guardian/secrets/<servicio>_token` | Vault cifrado con `age`; nunca variables de entorno |
@@ -45,7 +45,7 @@ Guárdalo en `agents/<nombre>.yaml`. Los ejemplos viven en `agents/examples/`.
 ## Flujo de trabajo
 
 ```bash
-# 1. Declara los modelos que ofreces en compose/litellm/config.yaml y reinicia el gateway.
+# 1. Los modelos de Ollama se descubren solos (compose/gateway/config.yaml, models: ["*"]).
 sudo make restart
 
 # 2. (una vez) crea el vault y guarda los secretos que use el agente
@@ -75,7 +75,7 @@ sudo ./bin/guardianctl key list
 sudo ./bin/guardianctl key delete n8n
 ```
 
-La app confía en la CA interna (`compose/certs/root.crt`) igual que el navegador.
+La app confía en la CA interna (`compose/certs/root.crt`) igual que el navegador. Detalles en `docs/gateway.md`.
 
 ## Cambiar la allowlist de un agente
 

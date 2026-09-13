@@ -6,7 +6,8 @@ IA (Ollama, llama.cpp, vLLM; también sobre Umbrel o ZimaOS) y añade lo que nin
 - **Identidad**: login con OIDC y passkeys (Pocket ID).
 - **Acceso remoto** solo por WireGuard; ningún puerto de aplicación abierto a Internet.
 - **Zonificación** con nftables y plantillas para tu firewall (FortiOS; OPNsense y UniFi pendientes).
-- **Gateway LLM** compatible con OpenAI (LiteLLM) con llaves virtuales por app o agente.
+- **Gateway LLM propio** compatible con OpenAI (gd-gateway, Go) con llaves virtuales, varios nodos Ollama y
+  cloud burst con presupuesto.
 - **Sandbox de agentes** con egreso controlado por allowlist por agente (Squid + Blocky), secretos
   cifrados con `age` inyectados como archivos y perfil seccomp/AppArmor propio.
 - **Auditoría** centralizada: Vector → Loki → Grafana con login OIDC, paneles de accesos, LLM y
@@ -16,16 +17,16 @@ No sustituye el runtime ni el chat: los protege. Diseño completo en [`DESIGN.md
 
 ## Estado
 
-**v0.2.0 publicado** (copias con restic, releases firmados con cosign, gVisor opcional, dominio
-público por DNS-01, panel de estado, UniFi y Proxmox LXC), probado en VMs de Debian 12 y Ubuntu 24.04. Buscamos
+**v0.2.0 publicado; v0.3 en `main`** (gateway propio en Go que sustituye a LiteLLM y Postgres, multi-nodo,
+cloud burst controlado), probado en VMs de Debian 12 y Ubuntu 24.04. Buscamos
 [beta testers](docs/beta.md) con hardware real. Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
-Ollama aislado, wg-easy 15, nftables con persistencia, LiteLLM con llaves virtuales en
+Ollama aislado, wg-easy 15, nftables con persistencia, gd-gateway con llaves virtuales en
 `api.<DOMAIN>`, red interna de agentes con Squid + Blocky por allowlist, sandbox
 (seccomp/AppArmor/uid 10000/solo lectura), vault con `age`, auditoría en `logs.<DOMAIN>` (Loki + Grafana con OIDC, alertas ntfy) y
 `guardianctl` (`init status doctor key policy agent secret`), `guardian.yaml`, políticas para
 FortiOS y OPNsense, imágenes por digest y releases con SHA-256. Aún no: UniFi, cosign, gVisor (v0.2). Pendiente de prueba en hardware real
-x86-64 y desde un móvil fuera de casa. Guías: [`docs/agentes.md`](docs/agentes.md), [`docs/auditoria.md`](docs/auditoria.md),
-[`docs/proxmox-lxc.md`](docs/proxmox-lxc.md).
+x86-64 y desde un móvil fuera de casa. Guías: [`docs/gateway.md`](docs/gateway.md), [`docs/agentes.md`](docs/agentes.md),
+[`docs/auditoria.md`](docs/auditoria.md), [`docs/proxmox-lxc.md`](docs/proxmox-lxc.md).
 
 ## Instalación rápida
 
@@ -68,7 +69,8 @@ Guía paso a paso (DNS local, instalar la CA en iOS/Android/Windows/macOS, WireG
 
 ```
 cmd/guardianctl/   CLI (Go, stdlib): init, status, doctor, key, policy, agent, secret
-compose/           docker-compose.yml, caddy/, litellm/, squid/, blocky/, vector/, loki/, grafana/, certs/
+compose/           docker-compose.yml, caddy/, gateway/, squid/, blocky/, vector/, loki/, grafana/, certs/
+cmd/gd-gateway/    gateway LLM (Go, stdlib)
 nftables/          firewall del host
 policies/          plantillas del firewall perimetral (fortios, opnsense, unifi)
 sandbox/           perfiles seccomp/AppArmor y runner de agentes

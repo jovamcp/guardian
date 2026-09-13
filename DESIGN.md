@@ -56,7 +56,7 @@ quiere ejecutar agentes (OpenClaw, Hermes Agent, n8n) sin exponer su red ni sus 
 | Red | Tipo | Servicios |
 |---|---|---|
 | `gd_front` | bridge | Caddy, Pocket ID, wg-easy, Grafana |
-| `gd_ai` | bridge, sin puertos publicados | Ollama, Open WebUI, gateway LiteLLM |
+| `gd_ai` | bridge, sin puertos publicados | Ollama, Open WebUI, gd-gateway |
 | `gd_agents` | `internal`, sin ruta por defecto | Contenedores de agentes |
 | `gd_egress` | bridge | Squid (proxy) y Blocky (DNS) |
 
@@ -71,7 +71,7 @@ quiere ejecutar agentes (OpenClaw, Hermes Agent, n8n) sin exponer su red ni sus 
 | wg-easy (o Tailscale) | Acceso remoto WireGuard con panel y QR | 1 |
 | nftables | Firewall del host + DOCKER-USER | 1 |
 | guardianctl | `init`, `agent`, `key`, `secret`, `policy render`, `status`, `doctor` | 1–4 |
-| LiteLLM proxy | API compatible OpenAI, llaves virtuales por agente, cuotas | 2 |
+| gd-gateway (propio, Go) | API compatible OpenAI, llaves virtuales, límites, presupuesto, multi-nodo, cloud burst | 2 (LiteLLM) → v0.3 |
 | Squid + Blocky | Egreso HTTPS con allowlist por agente, DNS filtrado | 2 |
 | Docker + seccomp/AppArmor | Sandbox de agentes | 2 |
 | Vector → Loki → Grafana | Auditoría centralizada | 3 |
@@ -80,8 +80,8 @@ quiere ejecutar agentes (OpenClaw, Hermes Agent, n8n) sin exponer su red ni sus 
 ### Flujos
 
 1. **Usuario en la LAN**: navegador → `https://<DOMAIN>` (Caddy) → Open WebUI → redirección a Pocket ID → passkey → sesión → Open WebUI habla con Ollama por `gd_ai`.
-2. **Aplicación con llave**: app → `https://api.<DOMAIN>` (Caddy) → LiteLLM valida la llave virtual, aplica cuota y modelo permitido → Ollama.
-3. **Agente por proxy**: contenedor en `gd_agents` → `HTTPS_PROXY` = Squid → allowlist del agente → Internet; DNS solo vía Blocky; LLM solo vía LiteLLM con su llave.
+2. **Aplicación con llave**: app → `https://api.<DOMAIN>` (Caddy) → gd-gateway valida la llave virtual, aplica límite, modelo permitido y presupuesto → el nodo Ollama sano (o un proveedor cloud si la llave lo permite).
+3. **Agente por proxy**: contenedor en `gd_agents` → `HTTPS_PROXY` = Squid → allowlist del agente → Internet; DNS solo vía Blocky; LLM solo vía gd-gateway con su llave.
 4. **Admin por WireGuard**: móvil → `51820/udp` → wg-easy → `10.8.0.0/24` → Caddy `443` → mismos servicios que en LAN. Nada más está expuesto.
 
 ## 5. Sandbox de agentes
@@ -164,7 +164,7 @@ docs/                   instalación y prompts de trabajo por fase
 Dashboard propio, gVisor para agentes, verificación con cosign, plantilla UniFi, copias con restic, despliegue en LXC de Proxmox, dominio real con DNS challenge.
 
 ### v0.3
-Gateway propio en Go (sustituye LiteLLM), multi-nodo, cloud burst controlado.
+Gateway propio en Go (sustituye LiteLLM), multi-nodo, cloud burst controlado. **Hecho en v0.3.0.**
 
 ## 10. Licencia y marca
 
