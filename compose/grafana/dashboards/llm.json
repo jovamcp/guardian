@@ -1,0 +1,435 @@
+{
+ "uid": "guardian-llm",
+ "title": "Guardian · LLM",
+ "tags": [
+  "guardian",
+  "llm"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "graphTooltip": 1,
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "refresh": "1m",
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Peticiones (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"litellm\", event=\"llm_request\"}[24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "blue"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Fallos (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"litellm\", event=\"llm_request\"} | json | status!=\"success\" [24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "red"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Tokens de salida (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(sum_over_time({service=\"litellm\", event=\"llm_request\"} | json | unwrap completion_tokens [24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "blue"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Coste estimado (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(sum_over_time({service=\"litellm\", event=\"llm_request\"} | json | unwrap spend [24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "purple"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Peticiones por llave (alias)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum by (agent) (count_over_time({service=\"litellm\", event=\"llm_request\"} | json | __error__=\"\" [1h]))",
+     "refId": "A",
+     "queryType": "range",
+     "legendFormat": "{{agent}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "bars",
+      "fillOpacity": 60,
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Peticiones por modelo",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 4,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum by (model) (count_over_time({service=\"litellm\", event=\"llm_request\"} | json | __error__=\"\" [1h]))",
+     "refId": "A",
+     "queryType": "range",
+     "legendFormat": "{{model}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "bars",
+      "fillOpacity": 60,
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "type": "table",
+   "title": "Tokens por llave (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum by (agent) (sum_over_time({service=\"litellm\", event=\"llm_request\"} | json | unwrap total_tokens [24h]))",
+     "refId": "A",
+     "queryType": "instant",
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "labelsToFields",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      }
+     }
+    }
+   ],
+   "options": {
+    "showHeader": true
+   }
+  },
+  {
+   "type": "table",
+   "title": "Accesos denegados por modelo o llave (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 12,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum by (client_ip) (count_over_time({service=\"litellm\"} |= \"key not allowed\" [24h]))",
+     "refId": "A",
+     "queryType": "instant",
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "labelsToFields",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      }
+     }
+    }
+   ],
+   "options": {
+    "showHeader": true
+   }
+  },
+  {
+   "type": "logs",
+   "title": "Llamadas al gateway (solo metadatos; nunca prompts)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 20,
+    "w": 24,
+    "h": 12
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "{service=\"litellm\", event=\"llm_request\"} | json | line_format \"{{.agent}} {{.model}} {{.status}} in={{.prompt_tokens}} out={{.completion_tokens}} ${{.spend}} {{.error}}\"",
+     "refId": "A",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending",
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "prettifyLogMessage": false
+   }
+  }
+ ]
+}

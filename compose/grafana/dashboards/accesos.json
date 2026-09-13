@@ -1,0 +1,468 @@
+{
+ "uid": "guardian-accesos",
+ "title": "Guardian · Accesos",
+ "tags": [
+  "guardian",
+  "accesos"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "graphTooltip": 1,
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "refresh": "1m",
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Logins completados (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"pocket-id\", event=\"login_token\"}[24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "green"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Errores de autenticación (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"pocket-id\", event=\"auth_error\"}[24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "red"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Peticiones HTTP (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"caddy\", event=\"http_access\"}[24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "blue"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Descartes del firewall (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"nftables\"}[24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "orange"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Logins y errores por hora",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum by (event) (count_over_time({service=\"pocket-id\", event=~\"login_token|auth_error\"}[1h]))",
+     "refId": "A",
+     "queryType": "range",
+     "legendFormat": "{{event}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "bars",
+      "fillOpacity": 60,
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Accesos HTTP por sitio",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 4,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum by (host) (count_over_time({service=\"caddy\", event=\"http_access\"} | json | __error__=\"\" [1h]))",
+     "refId": "A",
+     "queryType": "range",
+     "legendFormat": "{{host}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "bars",
+      "fillOpacity": 60,
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "type": "table",
+   "title": "Orígenes que más descarta el firewall (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "topk(10, sum by (client_ip, dport) (count_over_time({service=\"nftables\"} | json | __error__=\"\" [24h])))",
+     "refId": "A",
+     "queryType": "instant",
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "labelsToFields",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      }
+     }
+    }
+   ],
+   "options": {
+    "showHeader": true
+   }
+  },
+  {
+   "type": "table",
+   "title": "IPs con más errores de autenticación (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 12,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "topk(10, sum by (client_ip, error_code) (count_over_time({service=\"pocket-id\", event=\"auth_error\"} | json | __error__=\"\" [24h])))",
+     "refId": "A",
+     "queryType": "instant",
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "labelsToFields",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      }
+     }
+    }
+   ],
+   "options": {
+    "showHeader": true
+   }
+  },
+  {
+   "type": "logs",
+   "title": "Eventos de identidad (Pocket ID)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 20,
+    "w": 24,
+    "h": 12
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "{service=\"pocket-id\", event=~\"login_authorize|login_token|auth_error\"} | json | line_format \"{{.event}} {{.status}} {{.client_ip}} {{.path}} {{.error_code}}\"",
+     "refId": "A",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending",
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "prettifyLogMessage": false
+   }
+  },
+  {
+   "type": "logs",
+   "title": "Descartes de nftables",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 32,
+    "w": 24,
+    "h": 12
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "{service=\"nftables\"} | json | line_format \"{{.event}} {{.client_ip}} → {{.destination}}:{{.dport}} {{.proto}}\"",
+     "refId": "A",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending",
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "prettifyLogMessage": false
+   }
+  }
+ ]
+}

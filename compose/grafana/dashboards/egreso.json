@@ -1,0 +1,468 @@
+{
+ "uid": "guardian-egreso",
+ "title": "Guardian · Egreso de agentes",
+ "tags": [
+  "guardian",
+  "egreso"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "graphTooltip": 1,
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "refresh": "1m",
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Conexiones permitidas (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"squid\", event=\"egress_allowed\"}[24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "green"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Conexiones denegadas (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"squid\", event=\"egress_denied\"}[24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "red"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "DNS bloqueado (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"blocky\", event=\"dns_blocked\"}[24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "orange"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Descartes FORWARD (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum(count_over_time({service=\"nftables\", event=\"fw_drop_forward\"}[24h])) or vector(0)",
+     "refId": "A",
+     "queryType": "instant",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "color": {
+      "mode": "fixed",
+      "fixedColor": "orange"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Decisiones del proxy por hora",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum by (event) (count_over_time({service=\"squid\", event=~\"egress_.*\"}[1h]))",
+     "refId": "A",
+     "queryType": "range",
+     "legendFormat": "{{event}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "bars",
+      "fillOpacity": 60,
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Denegaciones por agente (IP)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 4,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "sum by (client_ip) (count_over_time({service=\"squid\", event=\"egress_denied\"} | json | __error__=\"\" [1h]))",
+     "refId": "A",
+     "queryType": "range",
+     "legendFormat": "{{client_ip}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "bars",
+      "fillOpacity": 60,
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "type": "table",
+   "title": "Destinos denegados (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "topk(20, sum by (client_ip, destination) (count_over_time({service=\"squid\", event=\"egress_denied\"} | json | __error__=\"\" [24h])))",
+     "refId": "A",
+     "queryType": "instant",
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "labelsToFields",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      }
+     }
+    }
+   ],
+   "options": {
+    "showHeader": true
+   }
+  },
+  {
+   "type": "table",
+   "title": "Dominios DNS bloqueados (24h)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 12,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "topk(20, sum by (client_ip, destination) (count_over_time({service=\"blocky\", event=\"dns_blocked\"} | json | __error__=\"\" [24h])))",
+     "refId": "A",
+     "queryType": "instant",
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "labelsToFields",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      }
+     }
+    }
+   ],
+   "options": {
+    "showHeader": true
+   }
+  },
+  {
+   "type": "logs",
+   "title": "Proxy de egreso (Squid)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 20,
+    "w": 24,
+    "h": 12
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "{service=\"squid\", event=~\"egress_.*\"} | json | line_format \"{{.event}} {{.client_ip}} → {{.destination}} {{.decision}}\"",
+     "refId": "A",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending",
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "prettifyLogMessage": false
+   }
+  },
+  {
+   "type": "logs",
+   "title": "DNS de agentes (Blocky)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 32,
+    "w": 24,
+    "h": 12
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "{service=\"blocky\", event=~\"dns_.*\"} | json | line_format \"{{.event}} {{.client_ip}} {{.destination}} {{.qtype}}\"",
+     "refId": "A",
+     "queryType": "range"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending",
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "prettifyLogMessage": false
+   }
+  }
+ ]
+}
