@@ -118,6 +118,18 @@ ensure_guardianctl() {
 	mkdir -p "${REPO_DIR}/bin"
 	curl -fsSL "${base}/guardianctl-linux-${arch}" -o "${bin}.tmp"
 	curl -fsSL "${base}/SHA256SUMS" -o "${REPO_DIR}/bin/SHA256SUMS"
+	# Firma cosign (keyless) de SHA256SUMS: obligatoria si cosign está instalado, aviso si no.
+	if command -v cosign >/dev/null 2>&1; then
+		curl -fsSL "${base}/SHA256SUMS.sig" -o "${REPO_DIR}/bin/SHA256SUMS.sig"
+		curl -fsSL "${base}/SHA256SUMS.pem" -o "${REPO_DIR}/bin/SHA256SUMS.pem"
+		cosign verify-blob --certificate "${REPO_DIR}/bin/SHA256SUMS.pem" --signature "${REPO_DIR}/bin/SHA256SUMS.sig" \
+			--certificate-identity-regexp '^https://github.com/jovamcp/guardian/.github/workflows/release.yml@' \
+			--certificate-oidc-issuer https://token.actions.githubusercontent.com "${REPO_DIR}/bin/SHA256SUMS" >/dev/null 2>&1 \
+			|| die "la firma cosign de SHA256SUMS no es válida"
+		log "Firma cosign de SHA256SUMS verificada (workflow release.yml de jovamcp/guardian)."
+	else
+		warn "cosign no está instalado: se verifica solo SHA-256. Para verificar la firma: apt install cosign (o ver docs/beta.md)."
+	fi
 	local expected actual
 	expected="$(awk -v f="guardianctl-linux-${arch}" '$2==f{print $1}' "${REPO_DIR}/bin/SHA256SUMS")"
 	actual="$(sha256sum "${bin}.tmp" | awk '{print $1}')"

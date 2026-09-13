@@ -1,0 +1,51 @@
+name: release
+# Construye los artefactos, los firma con cosign (keyless, identidad OIDC de este workflow) y
+# publica el release al empujar un tag v*. Con workflow_dispatch solo construye y firma
+# (artefactos del workflow, sin release) para poder ensayar.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-go@v5
+        with: {go-version: "1.22"}
+      - uses: sigstore/cosign-installer@v3
+      - name: Comprobaciones previas
+        run: |
+          go vet ./... && go test ./...
+          scripts/pin-images.sh --check
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            test "v$(cat VERSION)" = "${GITHUB_REF_NAME}" || { echo "VERSION ($(cat VERSION)) no coincide con el tag ${GITHUB_REF_NAME}"; exit 1; }
+          fi
+      - name: make release
+        run: make release
+      - name: Firmar artefactos (cosign keyless)
+        run: |
+          cd dist
+          for f in guardian-*.tar.gz guardianctl-linux-amd64 guardianctl-linux-arm64 SHA256SUMS; do
+            cosign sign-blob --yes --output-signature "$f.sig" --output-certificate "$f.pem" "$f"
+          done
+          ls -la
+      - name: Verificación de las firmas (misma identidad que usará install.sh)
+        run: |
+          cd dist
+          cosign verify-blob --certificate SHA256SUMS.pem --signature SHA256SUMS.sig \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with: {name: dist, path: dist/}
+      - name: Publicar release
+        if: github.ref_type == 'tag'
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          notes=$(awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## \\["v"\\]"{f=1} f && /^## \[/ && $0 !~ v {exit} f' CHANGELOG.md)
+          pre=""; [[ "${GITHUB_REF_NAME}" == *-* ]] && pre="--prerelease"
+          gh release create "${GITHUB_REF_NAME}" dist/* --title "${GITHUB_REF_NAME}" --notes "${notes:-Release ${GITHUB_REF_NAME}}" ${pre}

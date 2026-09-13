@@ -25,6 +25,15 @@ interesa, pero eso es lo primero.
    tar -xzf guardian-<versión>.tar.gz && cd guardian-<versión>
    ```
 
+   Desde v0.2 los releases van firmados con **cosign** (keyless, identidad del workflow de GitHub).
+   Si tienes cosign, comprueba también la firma de `SHA256SUMS`:
+
+   ```bash
+   cosign verify-blob --certificate SHA256SUMS.pem --signature SHA256SUMS.sig \
+     --certificate-identity-regexp '^https://github.com/jovamcp/guardian/.github/workflows/release.yml@' \
+     --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS
+   ```
+
    (Alternativa: `git clone https://github.com/jovamcp/guardian.git`; entonces necesitas Go ≥ 1.22
    o dejar que `install.sh` descargue el binario del release.)
 
