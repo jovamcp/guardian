@@ -34,10 +34,16 @@ Los ejemplos usan `DOMAIN=ai.home`. Sustitúyelo por el tuyo.
 
 ```bash
 sudo apt update && sudo apt install -y git
-git clone https://github.com/jovamcp/guardian.git
-cd guardian
+sudo git clone https://github.com/jovamcp/guardian.git /opt/guardian
+cd /opt/guardian
 sudo ./install.sh
 ```
+
+> ¿Por qué `/opt/guardian` como root? Los timers de systemd (copias, agentes programados, panel de
+> estado) ejecutan código del repo **como root**. Si el repo fuera de un usuario normal, quien
+> pudiera escribir ahí escalaría a root. `guardianctl` se niega a crear timers si el repo, el
+> binario o `sandbox/runner.sh` no son de root, y `doctor` lo vigila. Para probar sin timers,
+> un clon en tu home funciona igual.
 
 El instalador:
 

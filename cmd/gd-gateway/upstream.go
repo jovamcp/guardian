@@ -7,7 +7,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -130,7 +129,6 @@ func (u *Upstream) check(client *http.Client) {
 type Router struct {
 	ups    []*Upstream
 	client *http.Client
-	mu     sync.Mutex
 }
 
 func newRouter(ups []*Upstream) *Router {
@@ -175,7 +173,7 @@ func (r *Router) Candidates(model string) []*Upstream {
 				ring = append(ring, u)
 			}
 		}
-		start := int(healthy[0].rr.Add(1) % uint64(len(ring)))
+		start := int(healthy[0].rr.Add(1) % uint64(len(ring))) // #nosec G115 -- acotado por len(ring)
 		var ordered []*Upstream
 		seen := map[*Upstream]bool{}
 		for i := 0; i < len(ring); i++ {

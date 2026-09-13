@@ -34,8 +34,10 @@ interesa, pero eso es lo primero.
      --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS
    ```
 
-   (Alternativa: `git clone https://github.com/jovamcp/guardian.git`; entonces necesitas Go ≥ 1.22
-   o dejar que `install.sh` descargue el binario del release.)
+   Descomprime en `/opt` como root si vas a usar timers (copias, agentes programados, panel de
+   estado): el código que ejecutan como root debe pertenecer a root.
+   (Alternativa: `sudo git clone https://github.com/jovamcp/guardian.git /opt/guardian`; entonces
+   necesitas Go ≥ 1.22 o dejar que `install.sh` descargue el binario del release.)
 
 2. Ten a mano: tu dominio local (`ai.home` vale), la red de tu LAN, la red y VLAN que darás a la
    zona de IA, la IP del host y tu nombre DNS público o IP para WireGuard.

@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -38,6 +37,14 @@ func (r *rateLimiter) allow(key string, rpm int) bool {
 	defer r.mu.Unlock()
 	now := time.Now()
 	cut := now.Add(-time.Minute)
+	// Poda periódica de entradas inactivas (IPs de fuerza bruta, llaves revocadas).
+	if len(r.hits) > 4096 {
+		for k, h := range r.hits {
+			if len(h) == 0 || h[len(h)-1].Before(cut) {
+				delete(r.hits, k)
+			}
+		}
+	}
 	h := r.hits[key]
 	n := 0
 	for _, t := range h {
@@ -69,23 +76,60 @@ func bearer(r *http.Request) string {
 	return ""
 }
 
-func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return strings.TrimSpace(strings.Split(xff, ",")[0])
+// trustedProxies: solo se cree X-Forwarded-For cuando la conexión viene de Caddy (red gd_front).
+// Un agente en gd_agents no puede falsear su IP en la auditoría.
+var trustedProxies = mustCIDRs("172.28.10.0/24", "127.0.0.0/8")
+
+func mustCIDRs(cidrs ...string) []*net.IPNet {
+	var out []*net.IPNet
+	for _, c := range cidrs {
+		_, n, err := net.ParseCIDR(c)
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, n)
 	}
+	return out
+}
+
+func clientIP(r *http.Request) string {
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	ip := net.ParseIP(host)
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" && ip != nil {
+		for _, n := range trustedProxies {
+			if n.Contains(ip) {
+				return strings.TrimSpace(strings.Split(xff, ",")[0])
+			}
+		}
+	}
 	return host
+}
+
+// authFailRPM limita los intentos de autenticación fallidos por IP de origen (fuerza bruta).
+const authFailRPM = 20
+
+func (g *Gateway) authThrottled(w http.ResponseWriter, r *http.Request) bool {
+	if !g.rl.allow("authfail:"+clientIP(r), authFailRPM) {
+		w.Header().Set("Retry-After", "60")
+		writeErr(w, 429, "rate_limit_error", "demasiados intentos de autenticación fallidos")
+		return true
+	}
+	return false
 }
 
 func (g *Gateway) authKey(w http.ResponseWriter, r *http.Request) *Key {
 	tok := bearer(r)
 	if tok == "" {
-		writeErr(w, 401, "authentication_error", "falta la cabecera Authorization: Bearer <llave>")
+		if !g.authThrottled(w, r) {
+			writeErr(w, 401, "authentication_error", "falta la cabecera Authorization: Bearer <llave>")
+		}
 		return nil
 	}
 	k := g.store.Lookup(tok)
 	if k == nil {
-		writeErr(w, 401, "authentication_error", "llave inválida, revocada o caducada")
+		if !g.authThrottled(w, r) {
+			writeErr(w, 401, "authentication_error", "llave inválida, revocada o caducada")
+		}
 		return nil
 	}
 	return k
@@ -339,7 +383,9 @@ func (g *Gateway) requireMaster(w http.ResponseWriter, r *http.Request) bool {
 	if subtleEqual(bearer(r), g.cfg.MasterKey) {
 		return true
 	}
-	writeErr(w, 401, "authentication_error", "se requiere la master key")
+	if !g.authThrottled(w, r) {
+		writeErr(w, 401, "authentication_error", "se requiere la master key")
+	}
 	return false
 }
 
@@ -466,5 +512,3 @@ func (g *Gateway) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	}
 	w.Write([]byte("ok\n"))
 }
-
-var errNoBody = errors.New("sin cuerpo")

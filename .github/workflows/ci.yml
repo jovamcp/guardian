@@ -46,6 +46,15 @@ jobs:
           docker compose --env-file compose/.env -f compose/docker-compose.yml -f compose/tls-acme-dns.yml config --quiet
           rm -f compose/.env compose/.extra-files
           docker run --rm -v "$PWD/compose/vector/vector.yaml:/etc/vector/vector.yaml:ro" timberio/vector:0.58.0-debian validate --no-environment /etc/vector/vector.yaml
+      - name: Seguridad (gosec, staticcheck, gitleaks)
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          # Exclusiones justificadas en docs/seguridad.md (taint genérico de una CLI que lee su propio
+          # repo y lanza docker/systemctl; permisos 0644 de archivos públicos; errores ignorados en limpiezas).
+          "$(go env GOPATH)/bin/gosec" -quiet -exclude=G101,G104,G115,G204,G301,G302,G304,G306,G702,G703,G704,G706,G708 ./...
+          "$(go env GOPATH)/bin/staticcheck" ./...
+          docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:latest detect --source /repo --no-banner --redact
       - name: policy render con guardian.yaml de ejemplo
         run: |
           cp guardian.yaml.example guardian.yaml

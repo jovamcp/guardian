@@ -15,9 +15,9 @@ COMPOSE=(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_DIR}/docker-compo
 load_extra_compose() {
 	local f
 	if [[ -f "${COMPOSE_DIR}/.extra-files" ]]; then
-		for f in $(awk '{for(i=1;i<=NF;i++) if($i!="-f") print $i}' "${COMPOSE_DIR}/.extra-files"); do
-			COMPOSE+=(-f "${REPO_DIR}/${f}")
-		done
+		while read -r f; do
+			[[ -n "${f}" ]] && COMPOSE+=(-f "${REPO_DIR}/${f}")
+		done < <(awk '{for(i=1;i<=NF;i++) if($i!="-f") print $i}' "${COMPOSE_DIR}/.extra-files")
 	fi
 }
 WITH_NFTABLES=0

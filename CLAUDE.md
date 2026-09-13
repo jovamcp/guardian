@@ -46,6 +46,11 @@ estado, Proxmox LXC). Antes de cada release: `make pin-images && make release`; 
 - Pruebas en Apple Silicon (Lima/vz): Open WebUI muere con SIGILL en `cryptography`; usa
   `OPENSSL_armcap=0` en un override fuera del repo. No afecta a x86-64.
 
+## Seguridad
+- `docs/seguridad.md` recoge el modelo de confianza, hallazgos corregidos y riesgos aceptados; actualízalo en cada release.
+- Los timers ejecutan código del repo como root: el repo debe ser de root (`/opt/guardian`); `checkRootOwned` lo exige.
+- Manifiestos: `mounts` solo dentro de `agents/`, imagen con digest de 64 hex; el gateway limita fallos de auth por IP.
+
 ## Convenciones
 - Un PR (o commit) por tarea; el mensaje explica qué cambió y con qué fuente se verificó.
 - Cada servicio del compose lleva `restart: unless-stopped`, `healthcheck` y rotación de logs (`x-logging`).

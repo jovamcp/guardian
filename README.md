@@ -27,6 +27,7 @@ Ollama aislado, wg-easy 15, nftables con persistencia, gd-gateway con llaves vir
 FortiOS y OPNsense, imágenes por digest y releases con SHA-256. Aún no: UniFi, cosign, gVisor (v0.2). Pendiente de prueba en hardware real
 x86-64 y desde un móvil fuera de casa. Guías: [`docs/gateway.md`](docs/gateway.md), [`docs/agentes.md`](docs/agentes.md),
 [`docs/auditoria.md`](docs/auditoria.md), [`docs/proxmox-lxc.md`](docs/proxmox-lxc.md).
+Revisión de seguridad y riesgos aceptados: [`docs/seguridad.md`](docs/seguridad.md).
 
 ## Instalación rápida
 
@@ -35,7 +36,7 @@ Requisitos: Debian 12 o Ubuntu 24.04, `sudo`, IP fija en la zona de IA.
 ```bash
 # Release (recomendado): tarball + SHA256SUMS desde https://github.com/jovamcp/guardian/releases
 sha256sum -c --ignore-missing SHA256SUMS && tar -xzf guardian-*.tar.gz && cd guardian-*/
-# o: git clone https://github.com/jovamcp/guardian.git && cd guardian
+# o: sudo git clone https://github.com/jovamcp/guardian.git /opt/guardian && cd /opt/guardian
 sudo ./install.sh              # añade --with-nftables para aplicar el firewall del host
 ```
 

@@ -228,14 +228,15 @@ func buildRunArgs(root string, m *Manifest, seccomp, secretsDir string) []string
 	if secretsDir != "" {
 		args = append(args, "--mount", "type=bind,src="+secretsDir+",dst="+agentSecretsIn+",readonly")
 	}
-	base := filepath.Dir(m.Path)
 	for _, mnt := range m.Mounts {
 		src, dst, _ := strings.Cut(mnt, ":")
-		if !filepath.IsAbs(src) {
-			src = filepath.Join(base, src)
+		abs, err := resolveMount(root, m.Path, src)
+		if err != nil {
+			// validate() ya rechazó orígenes absolutos; aquí solo quedan errores de resolución.
+			fmt.Fprintln(os.Stderr, "agent run:", err)
+			os.Exit(1)
 		}
-		src, _ = filepath.Abs(src)
-		args = append(args, "--mount", "type=bind,src="+src+",dst="+dst+",readonly")
+		args = append(args, "--mount", "type=bind,src="+abs+",dst="+dst+",readonly")
 	}
 	args = append(args, m.Image)
 	args = append(args, m.Command...)
@@ -252,6 +253,29 @@ func writeSecret(dir, name, value string) error {
 	}
 	// El directorio debe ser transitable por el uid del agente.
 	return os.Chown(dir, 10000, 10000)
+}
+
+// checkRootOwned exige que las rutas que root ejecutará desde timers (runner, binario, directorio
+// del repo) pertenezcan a root y no sean escribibles por otros: si no, un usuario sin privilegios
+// que pudiera editarlas obtendría root en la siguiente ejecución planificada.
+func checkRootOwned(paths ...string) error {
+	var bad []string
+	for _, p := range paths {
+		st, err := os.Stat(p)
+		if err != nil {
+			bad = append(bad, p+" (no existe)")
+			continue
+		}
+		uid, gid := fileOwner(st)
+		mode := st.Mode().Perm()
+		if uid != 0 || (gid != 0 && mode&0o020 != 0) || mode&0o002 != 0 {
+			bad = append(bad, fmt.Sprintf("%s (uid %d, modo %o)", p, uid, mode))
+		}
+	}
+	if len(bad) > 0 {
+		return fmt.Errorf("rutas que root ejecutará por timer y no son de root o son escribibles por otros: %s. Mueve el repo a /opt/guardian como root (chown -R root:root, chmod -R o-w) o no uses timers", strings.Join(bad, "; "))
+	}
+	return nil
 }
 
 // ensureAppArmor comprueba que el kernel tiene AppArmor y carga (o recarga) el perfil del repo.

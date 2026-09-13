@@ -1,0 +1,10 @@
+# gitleaks: excepciones documentadas. Todo lo demás cuenta como fuga.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valores de prueba evidentes (no son credenciales)"
+regexes = [
+  "0123456789abcdef0123456789abcdef01234567",  # token ficticio para validar el Caddyfile acme-dns en CI
+  "sk-master-0123456789abcdef",                 # master key de los tests unitarios del gateway
+]

@@ -21,6 +21,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Vers
 - Los directorios `compose/vector` y `compose/gateway` se montan enteros (inodos al reemplazar).
 - Las copias incluyen `gateway_data`; el `pg_dump` solo se hace si aún existe LiteLLM.
 
+### Seguridad (revisión completa, `docs/seguridad.md`)
+- Los timers de systemd exigen que el repo, el binario y el runner sean de root (escalada local).
+- `mounts:` de los manifiestos confinados a `agents/`; `docker.sock` prohibido; digest de 64 hex.
+- Gateway: `X-Forwarded-For` solo desde Caddy; límite de 20 fallos de autenticación por minuto e IP.
+- `no-new-privileges` en todos los servicios y `cap_drop ALL` donde es seguro.
+- gosec, staticcheck y gitleaks en CI; `.gitleaks.toml` con las excepciones de prueba.
+
 ### Eliminado
 - Servicios `litellm` y `litellm-db`; `compose/litellm/`. Las llaves de LiteLLM no se migran.
 

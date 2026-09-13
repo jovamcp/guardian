@@ -201,6 +201,11 @@ func cmdAgentSchedule(args []string) int {
 			fmt.Fprintln(os.Stderr, "agent schedule apply: requiere root")
 			return 1
 		}
+		exe, _ := os.Executable()
+		if err := checkRootOwned(root, filepath.Join(root, "sandbox", "runner.sh"), exe, filepath.Join(root, "agents")); err != nil {
+			fmt.Fprintln(os.Stderr, "agent schedule apply:", err)
+			return 1
+		}
 		ms, err := loadAllManifests(root)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -265,6 +270,10 @@ func cmdAgentSchedule(args []string) int {
 		if os.Geteuid() != 0 {
 			fmt.Fprintln(os.Stderr, "agent schedule remove: requiere root")
 			return 1
+		}
+		if !nameRe.MatchString(args[1]) {
+			fmt.Fprintln(os.Stderr, "agent schedule remove: nombre de agente inválido")
+			return 2
 		}
 		sName, tName := unitNames(args[1])
 		exec.Command("systemctl", "disable", "--now", tName).Run()

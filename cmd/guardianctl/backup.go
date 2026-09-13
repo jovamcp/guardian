@@ -239,6 +239,10 @@ func cmdBackupSchedule(root string, args []string) int {
 			return 1
 		}
 		exe, _ := os.Executable()
+		if err := checkRootOwned(root, exe); err != nil {
+			fmt.Fprintln(os.Stderr, "backup schedule apply:", err)
+			return 1
+		}
 		service := fmt.Sprintf("# Generado por guardianctl backup schedule.\n[Unit]\nDescription=Copia de seguridad de Guardian (restic)\nAfter=docker.service\nRequires=docker.service\n\n[Service]\nType=oneshot\nWorkingDirectory=%s\nExecStart=%s backup run\nTimeoutStartSec=4h\nNice=10\nIOSchedulingClass=idle\n", root, exe)
 		timer := fmt.Sprintf("# Generado por guardianctl backup schedule.\n[Unit]\nDescription=Planificación de copias de Guardian (cron: %s)\n\n[Timer]\nOnCalendar=%s\nPersistent=true\nRandomizedDelaySec=15m\nUnit=%s\n\n[Install]\nWantedBy=timers.target\n", c.BackupCron, oc, sName)
 		if err := os.WriteFile(filepath.Join(unitDir, sName), []byte(service), 0o644); err != nil {

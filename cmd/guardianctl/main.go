@@ -202,6 +202,7 @@ func cmdDoctor(args []string) int {
 		{"gateway LLM: nodos upstream sanos", checkGatewayUpstreams},
 		{"copias de seguridad configuradas y recientes", checkBackupFresh},
 		{"entorno de ejecución (LXC de Proxmox: nesting, tun, wireguard, AppArmor)", checkContainerHost},
+		{"timers de systemd: el código que ejecutan pertenece a root", checkTimerOwnership},
 	}
 	host, _ := os.Hostname()
 	rep := doctorReport{Timestamp: time.Now().UTC().Format(time.RFC3339), Version: version, Host: host}
@@ -271,7 +272,7 @@ func postDoctorReport(rep doctorReport) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("Vector respondió %d", resp.StatusCode)
+		return fmt.Errorf("vector respondió %d", resp.StatusCode)
 	}
 	return nil
 }
@@ -290,6 +291,10 @@ func cmdDoctorSchedule(args []string) int {
 	switch args[0] {
 	case "apply":
 		exe, _ := os.Executable()
+		if err := checkRootOwned(root, exe); err != nil {
+			fmt.Fprintln(os.Stderr, "doctor schedule apply:", err)
+			return 1
+		}
 		service := fmt.Sprintf("# Generado por guardianctl doctor schedule.\n[Unit]\nDescription=Guardian doctor (informe al panel de estado)\nAfter=docker.service\nRequires=docker.service\n\n[Service]\nType=oneshot\nWorkingDirectory=%s\nExecStart=%s doctor --report\nSuccessExitStatus=1\nTimeoutStartSec=10m\n", root, exe)
 		timer := "# Generado por guardianctl doctor schedule.\n[Unit]\nDescription=Planificación de guardian doctor\n\n[Timer]\nOnBootSec=5m\nOnUnitActiveSec=15m\nRandomizedDelaySec=1m\nUnit=" + sName + "\n\n[Install]\nWantedBy=timers.target\n"
 		if err := os.WriteFile(filepath.Join(unitDir, sName), []byte(service), 0o644); err != nil {
@@ -896,7 +901,7 @@ func checkLokiIngesting(string) error {
 		time.Sleep(10 * time.Second)
 	}
 	if err != nil || !strings.Contains(out, "ready") {
-		return fmt.Errorf("Loki no responde ready en gd_audit tras 90 s: %v %s", err, strings.TrimSpace(out))
+		return fmt.Errorf("loki no responde ready en gd_audit tras 90 s: %v %s", err, strings.TrimSpace(out))
 	}
 	// Alguna línea de cualquier servicio en los últimos 15 minutos.
 	start := time.Now().Add(-15 * time.Minute).UnixNano()
@@ -975,6 +980,19 @@ func checkGatewayUpstreams(root string) error {
 	}
 	if len(sick) > 0 {
 		return errWarn{fmt.Sprintf("nodos sanos: %s; no sanos: %s", strings.Join(healthy, ","), strings.Join(sick, ", "))}
+	}
+	return nil
+}
+
+// checkTimerOwnership: si hay timers de Guardian instalados, el repo y el binario deben ser de root.
+func checkTimerOwnership(root string) error {
+	matches, _ := filepath.Glob(filepath.Join(unitDir, "guardian-*.timer"))
+	if len(matches) == 0 {
+		return nil
+	}
+	exe, _ := os.Executable()
+	if err := checkRootOwned(root, exe, filepath.Join(root, "sandbox", "runner.sh")); err != nil {
+		return err
 	}
 	return nil
 }

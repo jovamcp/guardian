@@ -25,6 +25,7 @@ const (
 )
 
 var nameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
+var digestRe = regexp.MustCompile(`@sha256:[0-9a-f]{64}$`)
 var domainRe = regexp.MustCompile(`^(\*\.)?([a-z0-9-]+\.)+[a-z]{2,}$`)
 
 // Manifest es la parte del YAML que guardianctl entiende (DESIGN.md §5).
@@ -101,8 +102,8 @@ func (m *Manifest) validate() error {
 	if m.Image == "" {
 		return errors.New("image es obligatorio")
 	}
-	if !strings.Contains(m.Image, "@sha256:") {
-		return errors.New("image debe ir fijada por digest (…@sha256:…), regla dura 4")
+	if !digestRe.MatchString(m.Image) {
+		return errors.New("image debe ir fijada por digest completo (…@sha256:<64 hex>), regla dura 4")
 	}
 	for _, d := range m.Allow {
 		if !domainRe.MatchString(d) {
@@ -131,8 +132,42 @@ func (m *Manifest) validate() error {
 		if strings.Count(mnt, ":") != 1 {
 			return fmt.Errorf("mounts: formato origen:destino, sin opciones (%q); siempre se monta solo lectura", mnt)
 		}
+		src, dst, _ := strings.Cut(mnt, ":")
+		if !filepath.IsAbs(dst) || dst == "/" {
+			return fmt.Errorf("mounts: el destino debe ser una ruta absoluta dentro del contenedor (%q)", mnt)
+		}
+		for _, forbidden := range []string{"/run/guardian", "/proc", "/sys", "/dev"} {
+			if dst == forbidden || strings.HasPrefix(dst, forbidden+"/") {
+				return fmt.Errorf("mounts: destino %q no permitido", dst)
+			}
+		}
+		if filepath.IsAbs(src) {
+			return fmt.Errorf("mounts: el origen debe ser relativo al manifiesto y quedar dentro de agents/ (%q)", src)
+		}
 	}
 	return nil
+}
+
+// resolveMount devuelve el origen absoluto de un mount comprobando que queda dentro de agents/
+// del repo (sin enlaces simbólicos hacia fuera) y que no es un socket ni un secreto.
+func resolveMount(root, manifestPath, src string) (string, error) {
+	base := filepath.Dir(manifestPath)
+	abs, err := filepath.EvalSymlinks(filepath.Join(base, src))
+	if err != nil {
+		return "", fmt.Errorf("mounts: %s: %v", src, err)
+	}
+	agentsDir, err := filepath.EvalSymlinks(filepath.Join(root, "agents"))
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(agentsDir, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
+		return "", fmt.Errorf("mounts: %s resuelve fuera de %s (%s)", src, agentsDir, abs)
+	}
+	if strings.Contains(abs, "docker.sock") {
+		return "", errors.New("mounts: el socket de Docker nunca se monta en un agente")
+	}
+	return abs, nil
 }
 
 // assignIP deriva una IP estable del nombre (172.28.30.100–250). Si dos agentes chocan,
