@@ -253,7 +253,7 @@ services:
       # Credenciales de upstreams cloud (opcional): GATEWAY_UPSTREAM_<NOMBRE>_KEY en compose/.env.
       GATEWAY_UPSTREAM_OPENAI_KEY: ${GATEWAY_UPSTREAM_OPENAI_KEY:-}
     volumes:
-      - ./gateway/config.yaml:/etc/gateway/config.yaml:ro
+      - ./gateway:/etc/gateway:ro     # directorio (no archivo suelto) para que los cambios se vean
       - gateway_data:/data
     networks:
       gd_front: {}          # Caddy publica api.<DOMAIN>; salida a Internet para upstreams cloud

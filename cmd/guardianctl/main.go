@@ -199,6 +199,7 @@ func cmdDoctor(args []string) int {
 		{"solo docker-socket-proxy monta el socket de Docker (y de solo lectura)", checkDockerSockOnlyProxy},
 		{"Loki está listo e ingiere logs recientes", checkLokiIngesting},
 		{"alertas: destino ntfy configurado", checkNtfyConfigured},
+		{"gateway LLM: nodos upstream sanos", checkGatewayUpstreams},
 		{"copias de seguridad configuradas y recientes", checkBackupFresh},
 		{"entorno de ejecución (LXC de Proxmox: nesting, tun, wireguard, AppArmor)", checkContainerHost},
 	}
@@ -946,4 +947,34 @@ func checkContainerHost(string) error {
 		return fmt.Errorf("LXC detectado; %s (ver docs/proxmox-lxc.md)", strings.Join(problems, "; "))
 	}
 	return errWarn{"LXC detectado: nesting, tun, wireguard y AppArmor presentes. Recuerda que el contenedor debe ser privilegiado o tener keyctl/nesting activados (docs/proxmox-lxc.md)"}
+}
+
+// checkGatewayUpstreams consulta /admin/health del gateway: FAIL si ningún nodo está sano,
+// WARN si alguno no lo está.
+func checkGatewayUpstreams(root string) error {
+	code, out, err := gatewayCall(root, http.MethodGet, "/admin/health", nil)
+	if err != nil {
+		return fmt.Errorf("no se pudo consultar el gateway: %v", err)
+	}
+	if code != 200 {
+		return fmt.Errorf("gateway /admin/health devolvió %d", code)
+	}
+	ups, _ := out["upstreams"].([]any)
+	var healthy, sick []string
+	for _, u := range ups {
+		m, _ := u.(map[string]any)
+		name := fmt.Sprint(m["name"])
+		if h, _ := m["healthy"].(bool); h {
+			healthy = append(healthy, name)
+		} else {
+			sick = append(sick, fmt.Sprintf("%s (%v)", name, m["last_error"]))
+		}
+	}
+	if len(healthy) == 0 {
+		return fmt.Errorf("ningún nodo sano: %s", strings.Join(sick, ", "))
+	}
+	if len(sick) > 0 {
+		return errWarn{fmt.Sprintf("nodos sanos: %s; no sanos: %s", strings.Join(healthy, ","), strings.Join(sick, ", "))}
+	}
+	return nil
 }
