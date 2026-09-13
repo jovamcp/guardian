@@ -16,13 +16,13 @@ No sustituye el runtime ni el chat: los protege. Diseño completo en [`DESIGN.md
 
 ## Estado
 
-**v0.1 en desarrollo. Fases 1 (base), 2 (agentes) y 3 (auditoría) completadas y probadas en VMs de
-Debian 12 y Ubuntu 24.04.** Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
+**v0.1.0-beta.1.** Las cuatro fases de v0.1 están completas y probadas en VMs de Debian 12 y
+Ubuntu 24.04; buscamos [beta testers](docs/beta.md) con hardware real. Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
 Ollama aislado, wg-easy 15, nftables con persistencia, LiteLLM con llaves virtuales en
 `api.<DOMAIN>`, red interna de agentes con Squid + Blocky por allowlist, sandbox
 (seccomp/AppArmor/uid 10000/solo lectura), vault con `age`, auditoría en `logs.<DOMAIN>` (Loki + Grafana con OIDC, alertas ntfy) y
-`guardianctl` (`init status doctor key policy agent secret`). Aún no: plantillas OPNsense/UniFi,
-`guardian.yaml` y `policy render fortios` (Fase 4). Pendiente de prueba en hardware real
+`guardianctl` (`init status doctor key policy agent secret`), `guardian.yaml`, políticas para
+FortiOS y OPNsense, imágenes por digest y releases con SHA-256. Aún no: UniFi, cosign, gVisor (v0.2). Pendiente de prueba en hardware real
 x86-64 y desde un móvil fuera de casa. Guías: [`docs/agentes.md`](docs/agentes.md), [`docs/auditoria.md`](docs/auditoria.md).
 
 ## Instalación rápida
@@ -30,18 +30,21 @@ x86-64 y desde un móvil fuera de casa. Guías: [`docs/agentes.md`](docs/agentes
 Requisitos: Debian 12 o Ubuntu 24.04, `sudo`, IP fija en la zona de IA.
 
 ```bash
-git clone https://github.com/jovamcp/guardian.git
-cd guardian
+# Release (recomendado): tarball + SHA256SUMS desde https://github.com/jovamcp/guardian/releases
+sha256sum -c --ignore-missing SHA256SUMS && tar -xzf guardian-*.tar.gz && cd guardian-*/
+# o: git clone https://github.com/jovamcp/guardian.git && cd guardian
 sudo ./install.sh              # añade --with-nftables para aplicar el firewall del host
 ```
 
 El instalador instala Docker desde el repositorio oficial de Docker (nunca `curl | bash`), crea
-`compose/.env` con secretos generados, exporta la CA interna de Caddy a `compose/certs/root.crt`
-y levanta la plataforma. Solo se publican **443/tcp** y **51820/udp**.
+`compose/.env` con secretos generados, te hace cinco preguntas (`guardianctl init` →
+`guardian.yaml`), exporta la CA interna de Caddy a `compose/certs/root.crt` y levanta la
+plataforma. Solo se publican **443/tcp** y **51820/udp**. Sin terminal (`< /dev/null`) usa los
+valores por defecto; ajusta después con `sudo ./bin/guardianctl init --domain … --lan … --ai-cidr …`.
 
 ## Después de instalar
 
-1. **DNS local**: apunta `<DOMAIN>`, `id.<DOMAIN>` y `vpn.<DOMAIN>` a la IP del host
+1. **DNS local**: apunta `<DOMAIN>`, `id.`, `api.`, `logs.` y `vpn.<DOMAIN>` a la IP del host
    (por defecto `DOMAIN=ai.home`).
 2. **Instala la CA** `compose/certs/root.crt` en cada dispositivo (ver `docs/instalacion.md`).
 3. **Pocket ID**: entra en `https://id.<DOMAIN>/setup`, crea el usuario admin con passkey y un
@@ -52,7 +55,9 @@ y levanta la plataforma. Solo se publican **443/tcp** y **51820/udp**.
 5. `sudo make restart` y entra en `https://<DOMAIN>` con **Continue with Pocket ID**. El primer
    usuario es administrador.
 6. **WireGuard**: `https://vpn.<DOMAIN>` → asistente inicial → añade tu móvil con el QR.
-7. `sudo make doctor` debe estar todo en verde.
+7. **Firewall perimetral**: `sudo ./bin/guardianctl policy render fortios` (u `opnsense`) y pega
+   la salida en tu firewall; en el host, `sudo ./install.sh --with-nftables`.
+8. `sudo make doctor` debe estar todo en verde.
 
 Guía paso a paso (DNS local, instalar la CA en iOS/Android/Windows/macOS, WireGuard):
 [`docs/instalacion.md`](docs/instalacion.md).

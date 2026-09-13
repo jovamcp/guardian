@@ -46,10 +46,16 @@ El instalador:
 2. Crea `compose/.env` (permisos `0600`) y genera dos secretos: `WEBUI_SECRET_KEY` y
    `POCKET_ID_ENCRYPTION_KEY`. **Guarda una copia de `compose/.env`**: si pierdes la clave de
    Pocket ID, pierdes sus datos.
-3. Te pregunta si quieres editar `DOMAIN`, `TZ` y `WG_HOST`. Hazlo ahora:
-   - `DOMAIN`: el nombre que usarás en casa, por ejemplo `ai.home`.
-   - `TZ`: tu zona horaria, por ejemplo `America/Puerto_Rico` o `Europe/Madrid`.
-   - `WG_HOST`: cómo se llega a tu casa desde Internet (`micasa.duckdns.org` o tu IP pública).
+3. Ejecuta `guardianctl init`, que te pregunta (Enter acepta el valor entre corchetes):
+   - **Dominio base**: el nombre que usarás en casa, por ejemplo `ai.home`.
+   - **Zona horaria**: `America/Puerto_Rico`, `Europe/Madrid`…
+   - **Red LAN**, **red de la zona de IA**, **IP de este host** y **VLAN**: si no tienes VLAN,
+     pon la misma red que tu LAN y la IP real del host.
+   - **Nombre DNS público o IP para WireGuard**: cómo se llega a tu casa desde Internet.
+   - **Firewall perimetral** y, opcionalmente, servidor y topic de **ntfy** para las alertas.
+
+   Todo queda en `guardian.yaml`; de ahí salen `compose/.env` (valores no secretos) y las redes
+   del firewall del host. Puedes repetirlo cuando quieras: `sudo ./bin/guardianctl init`.
 4. Arranca **solo Caddy**, espera a que cree su autoridad certificadora (CA) interna y la copia
    a `compose/certs/root.crt`. Este archivo es el que instalarás en tus dispositivos.
 5. Levanta el resto de servicios y muestra los siguientes pasos.
@@ -80,8 +86,19 @@ queda habilitado. El instalador desactiva el `flush ruleset` global del archivo 
 y del `ExecStop` del servicio porque borrarían las tablas de Docker y dejarían los contenedores
 sin red. Para reaplicar tras editar las reglas: `make nft-apply`.
 
-Si tu LAN o tu zona de IA no son `10.10.10.0/24` y `10.20.0.0/24`, edita los `define` al
-principio de **ambos** archivos antes de ejecutar el instalador con la flag.
+Las redes salen de `guardian.yaml` (`guardianctl init` las escribe en ambos archivos con
+`policy render nftables`), así que no hace falta editarlas a mano.
+
+### El firewall perimetral (FortiGate, OPNsense)
+
+```bash
+sudo ./bin/guardianctl policy render fortios --out fortigate.txt    # CLI lista para pegar
+sudo ./bin/guardianctl policy render opnsense --out opnsense.md     # guía paso a paso
+```
+
+Crean la VLAN de la zona de IA, permiten LAN → Guardian solo por 443, bloquean IA → LAN con
+registro, limitan IA → Internet a HTTPS/DNS/NTP y redirigen 51820/udp al host. Revisa los nombres
+de interfaz en `guardian.yaml` (`firewall:`) antes de aplicarlo.
 
 ## 3. DNS local
 
@@ -91,6 +108,8 @@ Tus dispositivos tienen que resolver tres nombres a la IP del host (ejemplo `10.
 |---|---|
 | `ai.home` | Open WebUI (chat) |
 | `id.ai.home` | Pocket ID (login) |
+| `api.ai.home` | Gateway LLM para apps y agentes |
+| `logs.ai.home` | Grafana (auditoría) |
 | `vpn.ai.home` | Panel de WireGuard |
 
 Dónde se configura, según lo que uses en casa:
