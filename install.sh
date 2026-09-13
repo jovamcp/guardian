@@ -11,6 +11,15 @@ COMPOSE_DIR="${REPO_DIR}/compose"
 ENV_FILE="${COMPOSE_DIR}/.env"
 CERT_DIR="${COMPOSE_DIR}/certs"
 COMPOSE=(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_DIR}/docker-compose.yml")
+# Archivos compose adicionales (los escribe guardianctl init según guardian.yaml).
+load_extra_compose() {
+	local f
+	if [[ -f "${COMPOSE_DIR}/.extra-files" ]]; then
+		for f in $(awk '{for(i=1;i<=NF;i++) if($i!="-f") print $i}' "${COMPOSE_DIR}/.extra-files"); do
+			COMPOSE+=(-f "${REPO_DIR}/${f}")
+		done
+	fi
+}
 WITH_NFTABLES=0
 WITH_GVISOR=0
 
@@ -156,6 +165,7 @@ run_init() {
 	# shellcheck disable=SC1090,SC1091
 	. "${ENV_FILE}"
 	set +a
+	load_extra_compose
 }
 
 prepare_env() {
@@ -210,8 +220,8 @@ export_caddy_ca() {
 
 start_stack() {
 	log "Levantando la plataforma…"
-	"${COMPOSE[@]}" pull --quiet
-	"${COMPOSE[@]}" up -d
+	"${COMPOSE[@]}" pull --quiet --ignore-buildable 2>/dev/null || "${COMPOSE[@]}" pull --quiet
+	"${COMPOSE[@]}" up -d --build
 	# El Caddyfile va montado: si cambió, `up` no reinicia caddy. Recarga en caliente.
 	"${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || true
 	"${COMPOSE[@]}" ps

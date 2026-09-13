@@ -42,6 +42,13 @@ alerts:
     url: ""               # https://ntfy.sh o tu servidor; vacío = sin alertas
     topic: guardian
 
+# TLS: internal (CA propia de Caddy, por defecto) o acme-dns (dominio público con Let's Encrypt
+# por DNS-01; sin abrir puertos nuevos). El token del proveedor va en compose/.env (ACME_DNS_TOKEN).
+tls:
+  mode: internal            # internal | acme-dns
+  dns_provider: cloudflare  # cloudflare | duckdns
+  email: ""                 # obligatorio con acme-dns
+
 # Copias de seguridad con restic (guardianctl backup). repository vacío = desactivadas.
 # Ejemplos: /var/backups/guardian  |  sftp:user@nas:/guardian  |  s3:s3.amazonaws.com/bucket
 backup:

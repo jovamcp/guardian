@@ -35,6 +35,10 @@ type Config struct {
 	RetentionDays int
 	NtfyURL       string
 	NtfyTopic     string
+	// tls (v0.2)
+	TLSMode     string // internal | acme-dns
+	DNSProvider string // cloudflare | duckdns
+	ACMEEmail   string
 	// backup (v0.2)
 	BackupRepo     string // ruta local o URL de restic (sftp:, s3:, rest:…); vacío = sin copias
 	BackupPassword string // vault:<ref>
@@ -54,6 +58,7 @@ func defaultConfig() Config {
 		RuntimeKind: "ollama", RuntimeGPU: "none",
 		FWVendor: "fortios", FWParent: "internal", FWLAN: "internal", FWWAN: "wan1", FWWANIP: "0.0.0.0",
 		RetentionDays: 30, NtfyTopic: "guardian",
+		TLSMode: "internal", DNSProvider: "cloudflare",
 		BackupPassword: "vault:backup/restic", BackupCron: "0 3 * * *",
 		KeepDaily: 7, KeepWeekly: 4, KeepMonthly: 6,
 	}
@@ -113,6 +118,10 @@ func loadConfig(root string) (Config, error) {
 	nt := ymap(ymap(doc["alerts"])["ntfy"])
 	c.NtfyURL = str(nt["url"], "")
 	c.NtfyTopic = str(nt["topic"], c.NtfyTopic)
+	tl := ymap(doc["tls"])
+	c.TLSMode = str(tl["mode"], c.TLSMode)
+	c.DNSProvider = str(tl["dns_provider"], c.DNSProvider)
+	c.ACMEEmail = str(tl["email"], "")
 	bk := ymap(doc["backup"])
 	c.BackupRepo = str(bk["repository"], "")
 	c.BackupPassword = str(bk["password"], c.BackupPassword)
@@ -157,6 +166,20 @@ func (c Config) validate() error {
 	}
 	if c.FWWANIP != "" && net.ParseIP(c.FWWANIP) == nil {
 		return fmt.Errorf("firewall.wan_ip %q inválida", c.FWWANIP)
+	}
+	if c.TLSMode != "internal" && c.TLSMode != "acme-dns" {
+		return errors.New("tls.mode debe ser internal o acme-dns")
+	}
+	if c.TLSMode == "acme-dns" {
+		if c.DNSProvider != "cloudflare" && c.DNSProvider != "duckdns" {
+			return errors.New("tls.dns_provider debe ser cloudflare o duckdns")
+		}
+		if !strings.Contains(c.ACMEEmail, "@") {
+			return errors.New("tls.email es obligatorio con acme-dns (avisos de Let's Encrypt)")
+		}
+		if strings.HasSuffix(c.Domain, ".home") || strings.HasSuffix(c.Domain, ".lan") || strings.HasSuffix(c.Domain, ".local") {
+			return fmt.Errorf("tls.mode acme-dns necesita un dominio público que controles; %q no lo es", c.Domain)
+		}
 	}
 	if c.BackupRepo != "" && !strings.HasPrefix(c.BackupPassword, "vault:") {
 		return errors.New("backup.password debe ser una referencia vault:<ref> (regla dura 6)")
@@ -220,6 +243,13 @@ alerts:
     url: %q
     topic: %s
 
+# TLS: internal (CA propia de Caddy, por defecto) o acme-dns (dominio público, Let's Encrypt
+# por DNS-01; el token del proveedor va en compose/.env como ACME_DNS_TOKEN).
+tls:
+  mode: %s
+  dns_provider: %s
+  email: %q
+
 # Copias de seguridad con restic (guardianctl backup). repository vacío = desactivadas.
 # Ejemplos: /var/backups/guardian  |  sftp:user@nas:/guardian  |  s3:s3.amazonaws.com/bucket
 backup:
@@ -234,6 +264,7 @@ backup:
 `, c.Domain, c.TZ, c.LANCIDR, c.AIVLAN, c.AICIDR, c.AIHostIP, c.AIGatewayIP,
 		c.RemoteProv, c.RemoteCIDR, c.RemoteEndp, c.RuntimeKind, c.RuntimeGPU,
 		c.FWVendor, c.FWParent, c.FWLAN, c.FWWAN, c.FWWANIP, c.RetentionDays, c.NtfyURL, c.NtfyTopic,
+		c.TLSMode, c.DNSProvider, c.ACMEEmail,
 		c.BackupRepo, c.BackupPassword, c.BackupCron, c.BackupModels, c.KeepDaily, c.KeepWeekly, c.KeepMonthly)
 }
 
@@ -261,6 +292,16 @@ func syncEnv(root string, c Config) error {
 		"DOMAIN": c.Domain, "TZ": c.TZ, "WG_HOST": c.RemoteEndp,
 		"LOKI_RETENTION_PERIOD": fmt.Sprintf("%dh", c.RetentionDays*24),
 		"NTFY_URL":              c.NtfyURL, "NTFY_TOPIC": c.NtfyTopic,
+		"ACME_EMAIL": c.ACMEEmail, "ACME_DNS_PROVIDER": c.DNSProvider,
+	}
+	// Archivos compose adicionales según el modo (los leen Makefile e install.sh).
+	extra := filepath.Join(root, "compose", ".extra-files")
+	if c.TLSMode == "acme-dns" {
+		if err := os.WriteFile(extra, []byte("-f compose/tls-acme-dns.yml\n"), 0o644); err != nil {
+			return err
+		}
+	} else {
+		os.Remove(extra)
 	}
 	seen := map[string]bool{}
 	var out []string

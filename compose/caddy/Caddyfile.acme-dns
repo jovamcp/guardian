@@ -1,0 +1,58 @@
+# Caddyfile para tls.mode: acme-dns — certificados públicos (Let's Encrypt) por DNS-01.
+# Se usa cuando compose/.extra-files incluye compose/tls-acme-dns.yml (lo escribe guardianctl init).
+# Variables (compose/.env): DOMAIN, ACME_EMAIL, ACME_DNS_PROVIDER (cloudflare|duckdns), ACME_DNS_TOKEN.
+{
+	admin localhost:2019
+	email {$ACME_EMAIL}
+}
+
+(secure) {
+	log {
+		output stdout
+		format json
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# DNS-01: no hace falta abrir el 80 ni el 443 hacia Internet; solo se publica 443 hacia la LAN/VPN.
+(dnstls) {
+	tls {
+		dns {$ACME_DNS_PROVIDER} {env.ACME_DNS_TOKEN}
+	}
+}
+
+{$DOMAIN} {
+	import dnstls
+	import secure
+	reverse_proxy open-webui:8080
+}
+
+id.{$DOMAIN} {
+	import dnstls
+	import secure
+	reverse_proxy pocket-id:1411
+}
+
+api.{$DOMAIN} {
+	import dnstls
+	import secure
+	reverse_proxy litellm:4000
+}
+
+logs.{$DOMAIN} {
+	import dnstls
+	import secure
+	reverse_proxy grafana:3000
+}
+
+vpn.{$DOMAIN} {
+	import dnstls
+	import secure
+	reverse_proxy wg-easy:51821
+}

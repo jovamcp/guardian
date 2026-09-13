@@ -13,3 +13,6 @@ bin/
 
 # artefactos de release
 dist/
+
+# activación de overrides de compose (lo escribe guardianctl init)
+compose/.extra-files

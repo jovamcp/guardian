@@ -1,0 +1,16 @@
+# Override para tls.mode: acme-dns (dominio real con certificados públicos por DNS-01).
+# Lo activa guardianctl init escribiendo "-f compose/tls-acme-dns.yml" en compose/.extra-files.
+services:
+  caddy:
+    build:
+      context: ./caddy
+    image: guardian/caddy-dns:local
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile.acme-dns", "--adapter", "caddyfile"]
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL}
+      ACME_DNS_PROVIDER: ${ACME_DNS_PROVIDER:-cloudflare}
+      ACME_DNS_TOKEN: ${ACME_DNS_TOKEN}
+  grafana:
+    environment:
+      # Con certificados públicos no se fija la CA interna para el cliente OIDC.
+      GF_AUTH_GENERIC_OAUTH_TLS_CLIENT_CA: ""

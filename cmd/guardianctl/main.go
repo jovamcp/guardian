@@ -112,6 +112,15 @@ func repoRoot() string {
 func composeArgs(root string, extra ...string) []string {
 	args := []string{"compose", "--env-file", filepath.Join(root, "compose", ".env"),
 		"-f", filepath.Join(root, "compose", "docker-compose.yml")}
+	// Archivos adicionales activados por guardian.yaml (p. ej. tls-acme-dns.yml).
+	if raw, err := os.ReadFile(filepath.Join(root, "compose", ".extra-files")); err == nil {
+		fields := strings.Fields(string(raw))
+		for i := 0; i+1 < len(fields); i += 2 {
+			if fields[i] == "-f" {
+				args = append(args, "-f", filepath.Join(root, fields[i+1]))
+			}
+		}
+	}
 	return append(args, extra...)
 }
 
@@ -358,6 +367,9 @@ func cmdInit(args []string) int {
 	fs.IntVar(&c.RetentionDays, "retention-days", c.RetentionDays, "días de retención de logs")
 	fs.StringVar(&c.NtfyURL, "ntfy-url", c.NtfyURL, "servidor ntfy (vacío = sin alertas)")
 	fs.StringVar(&c.NtfyTopic, "ntfy-topic", c.NtfyTopic, "topic de ntfy")
+	fs.StringVar(&c.TLSMode, "tls-mode", c.TLSMode, "internal | acme-dns (dominio público con DNS-01)")
+	fs.StringVar(&c.DNSProvider, "dns-provider", c.DNSProvider, "cloudflare | duckdns (con acme-dns)")
+	fs.StringVar(&c.ACMEEmail, "acme-email", c.ACMEEmail, "correo para Let's Encrypt (con acme-dns)")
 	noPrompt := fs.Bool("yes", false, "no preguntar; usar flags y valores por defecto")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -406,7 +418,10 @@ func cmdInit(args []string) int {
 		fmt.Fprintln(os.Stderr, "init: compose/.env:", err)
 		return 1
 	}
-	fmt.Println("sincronizado compose/.env (DOMAIN, TZ, WG_HOST, LOKI_RETENTION_PERIOD, NTFY_*)")
+	fmt.Println("sincronizado compose/.env (DOMAIN, TZ, WG_HOST, LOKI_RETENTION_PERIOD, NTFY_*, ACME_*)")
+	if c.TLSMode == "acme-dns" {
+		fmt.Printf("modo acme-dns: pon ACME_DNS_TOKEN=<token de %s> en compose/.env; compose usará compose/tls-acme-dns.yml (imagen de Caddy construida en local)\n", c.DNSProvider)
+	}
 	changed, err := renderNftables(root, c)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "init: nftables:", err)

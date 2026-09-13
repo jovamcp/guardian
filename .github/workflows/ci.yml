@@ -38,6 +38,12 @@ jobs:
       - name: Caddyfile y Vector
         run: |
           docker run --rm -v "$PWD/compose/caddy:/etc/caddy:ro" -e DOMAIN=ai.home caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          docker build -q -t guardian/caddy-dns:ci compose/caddy
+          docker run --rm -v "$PWD/compose/caddy:/etc/caddy:ro" -e DOMAIN=ejemplo.org -e ACME_EMAIL=a@ejemplo.org -e ACME_DNS_PROVIDER=cloudflare -e ACME_DNS_TOKEN=0123456789abcdef0123456789abcdef01234567 guardian/caddy-dns:ci caddy validate --config /etc/caddy/Caddyfile.acme-dns --adapter caddyfile
+          printf -- '-f compose/tls-acme-dns.yml\n' > compose/.extra-files
+          cp .env.example compose/.env && sed -i 's/^WEBUI_SECRET_KEY=.*/WEBUI_SECRET_KEY=x/; s/^POCKET_ID_ENCRYPTION_KEY=.*/POCKET_ID_ENCRYPTION_KEY=dGVzdA==/; s/^LITELLM_MASTER_KEY=.*/LITELLM_MASTER_KEY=sk-x/; s/^LITELLM_SALT_KEY=.*/LITELLM_SALT_KEY=sk-y/; s/^LITELLM_DB_PASSWORD=.*/LITELLM_DB_PASSWORD=p/; s/^GRAFANA_ADMIN_PASSWORD=.*/GRAFANA_ADMIN_PASSWORD=g/' compose/.env
+          docker compose --env-file compose/.env -f compose/docker-compose.yml -f compose/tls-acme-dns.yml config --quiet
+          rm -f compose/.env compose/.extra-files
           docker run --rm -v "$PWD/compose/vector/vector.yaml:/etc/vector/vector.yaml:ro" timberio/vector:0.58.0-debian validate --no-environment /etc/vector/vector.yaml
       - name: policy render con guardian.yaml de ejemplo
         run: |
