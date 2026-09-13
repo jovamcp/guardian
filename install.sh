@@ -138,7 +138,7 @@ run_init() {
 		warn "Sin terminal: guardian.yaml con valores por defecto. Ajusta con: sudo ./bin/guardianctl init --domain … --lan … --ai-cidr … --ai-host …"
 		"${bin}" init --yes
 	fi
-	# shellcheck disable=SC1090
+	# shellcheck source=/dev/null
 	set -a; . "${ENV_FILE}"; set +a
 }
 
@@ -164,7 +164,7 @@ prepare_env() {
 	ensure_env_var GRAFANA_ADMIN_PASSWORD; gen_secret_if_empty GRAFANA_ADMIN_PASSWORD "openssl rand -hex 16"
 	for v in GRAFANA_OAUTH_CLIENT_ID GRAFANA_OAUTH_CLIENT_SECRET LOKI_RETENTION_PERIOD NTFY_URL NTFY_TOPIC; do ensure_env_var "$v"; done
 
-	# shellcheck disable=SC1090
+	# shellcheck source=/dev/null
 	set -a; . "${ENV_FILE}"; set +a
 }
 
@@ -178,8 +178,7 @@ export_caddy_ca() {
 	fi
 	log "Levantando solo caddy para generar la CA interna…"
 	"${COMPOSE[@]}" up -d caddy
-	local i
-	for i in $(seq 1 30); do
+	for _ in $(seq 1 30); do
 		if docker exec gd-caddy test -s /data/caddy/pki/authorities/local/root.crt 2>/dev/null; then
 			docker cp gd-caddy:/data/caddy/pki/authorities/local/root.crt "${CERT_DIR}/root.crt"
 			chmod 0644 "${CERT_DIR}/root.crt"
