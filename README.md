@@ -16,8 +16,8 @@ No sustituye el runtime ni el chat: los protege. Diseño completo en [`DESIGN.md
 
 ## Estado
 
-**v0.1.0-beta.1 publicado; v0.2 en desarrollo en `main`** (copias con restic, releases firmados,
-gVisor opcional, dominio público por DNS-01, panel de estado, UniFi y Proxmox LXC). Buscamos
+**v0.2.0 publicado** (copias con restic, releases firmados con cosign, gVisor opcional, dominio
+público por DNS-01, panel de estado, UniFi y Proxmox LXC), probado en VMs de Debian 12 y Ubuntu 24.04. Buscamos
 [beta testers](docs/beta.md) con hardware real. Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
 Ollama aislado, wg-easy 15, nftables con persistencia, LiteLLM con llaves virtuales en
 `api.<DOMAIN>`, red interna de agentes con Squid + Blocky por allowlist, sandbox

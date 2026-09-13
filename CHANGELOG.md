@@ -2,7 +2,7 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Versionado semántico.
 
-## [0.2.0] — sin publicar
+## [0.2.0] — 2026-09-12
 
 ### Añadido
 - **Copias de seguridad** con restic: `guardianctl backup init|run|list|restore|schedule`,
