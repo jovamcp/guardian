@@ -1,13 +1,11 @@
-# OPNsense — política de la zona de IA (pendiente)
+# OPNsense — política de la zona de IA
 
-Estado: **pendiente** (hito 4 de v0.1). Implementará la misma política que
-`policies/fortios/ai-zone.tmpl`, exportable como reglas de firewall de OPNsense:
+`guardianctl policy render opnsense` genera una guía paso a paso (`ai-zone.md.tmpl`) con los
+valores de tu `guardian.yaml`: interfaz VLAN, alias, reglas LAN→Guardian (443), AI→LAN
+denegado con log, AI→Internet solo HTTPS/DNS/NTP y el port-forward de 51820/udp.
 
-| Regla | Origen → Destino | Servicio | Acción |
-|---|---|---|---|
-| LAN-to-Guardian-HTTPS | LAN_NET → GUARDIAN_HOST | 443/tcp | permitir + log |
-| WAN-to-Guardian-WG | WAN → GUARDIAN_HOST (port-forward) | 51820/udp | permitir + log |
-| AI-to-LAN-DENY | AI_ZONE_NET → LAN_NET | todo | denegar + log |
-| AI-to-Internet | AI_ZONE_NET → WAN | HTTPS, DNS, NTP | permitir + NAT + log |
+```bash
+sudo ./bin/guardianctl policy render opnsense --out /tmp/opnsense-ai-zone.md
+```
 
-Además: interfaz VLAN `ai-zone` (VLAN 20 en el ejemplo) con puerta de enlace en la VLAN.
+En v0.1 no se genera XML de importación: OPNsense se configura desde la interfaz siguiendo la guía.

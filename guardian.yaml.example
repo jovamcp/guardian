@@ -1,6 +1,9 @@
-# guardian.yaml — configuración declarativa de Guardian (la lee guardianctl).
-# En la Fase 1 solo se usa como referencia; guardianctl init la generará en la Fase 4.
+# guardian.yaml — fuente de verdad de la red de Guardian.
+# Lo crea `guardianctl init` (preguntas o flags). Si lo editas a mano:
+#   guardianctl policy render nftables   # actualiza los define del firewall del host
+#   sudo make restart                    # si cambió domain, tz o el endpoint de WireGuard
 domain: ai.home
+tz: America/Puerto_Rico
 
 # Red de usuarios (LAN de casa).
 lan_cidr: 10.10.10.0/24
@@ -10,29 +13,31 @@ ai_zone:
   vlan: 20
   cidr: 10.20.0.0/24
   host_ip: 10.20.0.10
+  gateway_ip: 10.20.0.1
 
-# Acceso remoto: wireguard (wg-easy) o tailscale.
+# Acceso remoto: wireguard (wg-easy) o tailscale (v0.2).
 remote:
   provider: wireguard
   cidr: 10.8.0.0/24
-  endpoint: ""            # WG_HOST: DNS público o IP WAN
+  endpoint: ""            # nombre DNS público o IP WAN (WG_HOST)
 
 # Runtime de IA que Guardian protege.
 runtime:
   kind: ollama            # ollama | llamacpp | vllm
   gpu: none               # none | nvidia | amd
 
-# Firewall perimetral para el que se generan políticas (policy render).
+# Firewall perimetral para el que se genera la política (policy render fortios|opnsense).
 firewall:
   vendor: fortios         # fortios | opnsense | unifi
   parent_interface: internal
   lan_interface: internal
   wan_interface: wan1
+  wan_ip: 0.0.0.0         # IP WAN para la VIP de WireGuard (FortiOS)
 
 audit:
-  retention_days: 30
+  retention_days: 30      # → LOKI_RETENTION_PERIOD
 
 alerts:
   ntfy:
-    url: ""
+    url: ""               # https://ntfy.sh o tu servidor; vacío = sin alertas
     topic: guardian

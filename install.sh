@@ -93,6 +93,55 @@ ensure_env_var() {
 	grep -qE "^$1=" "${ENV_FILE}" || printf '%s=\n' "$1" >> "${ENV_FILE}"
 }
 
+ensure_guardianctl() {
+	# Orden: binario ya presente (release tarball) → compilar con Go ≥ 1.22 → descargar del release
+	# de GitHub con verificación SHA-256. Nunca `curl | bash`.
+	local bin="${REPO_DIR}/bin/guardianctl" version arch
+	version="$(cat "${REPO_DIR}/VERSION")"
+	case "$(uname -m)" in x86_64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) die "arquitectura no soportada: $(uname -m)" ;; esac
+	if [[ -x "${bin}" ]]; then
+		log "guardianctl ya disponible: $("${bin}" version)"
+		return
+	fi
+	if [[ -x "${REPO_DIR}/bin/guardianctl-linux-${arch}" ]]; then
+		cp "${REPO_DIR}/bin/guardianctl-linux-${arch}" "${bin}"; chmod 0755 "${bin}"
+		log "guardianctl tomado del tarball del release."
+		return
+	fi
+	if command -v go >/dev/null 2>&1 && [[ "$(go version | grep -oE 'go1\.[0-9]+' | cut -d. -f2)" -ge 22 ]]; then
+		log "Compilando guardianctl con $(go version | awk '{print $3}')…"
+		(cd "${REPO_DIR}" && go build -ldflags "-s -w -X main.version=${version}" -o "${bin}" ./cmd/guardianctl)
+		return
+	fi
+	local base="https://github.com/jovamcp/guardian/releases/download/v${version}"
+	log "Descargando guardianctl v${version} (linux/${arch}) del release y verificando SHA-256…"
+	mkdir -p "${REPO_DIR}/bin"
+	curl -fsSL "${base}/guardianctl-linux-${arch}" -o "${bin}.tmp"
+	curl -fsSL "${base}/SHA256SUMS" -o "${REPO_DIR}/bin/SHA256SUMS"
+	local expected actual
+	expected="$(awk -v f="guardianctl-linux-${arch}" '$2==f{print $1}' "${REPO_DIR}/bin/SHA256SUMS")"
+	actual="$(sha256sum "${bin}.tmp" | awk '{print $1}')"
+	[[ -n "${expected}" && "${expected}" == "${actual}" ]] || die "SHA-256 de guardianctl no coincide (esperado ${expected:-?}, obtenido ${actual})"
+	mv "${bin}.tmp" "${bin}"; chmod 0755 "${bin}"
+	log "guardianctl verificado e instalado en bin/."
+}
+
+run_init() {
+	# guardian.yaml es la fuente de verdad de la red: pregunta (si hay terminal) o usa flags/defaults.
+	local bin="${REPO_DIR}/bin/guardianctl"
+	if [[ -f "${REPO_DIR}/guardian.yaml" ]]; then
+		log "guardian.yaml ya existe; sincronizo .env y nftables con él."
+		"${bin}" init --yes
+	elif [[ -t 0 ]]; then
+		"${bin}" init
+	else
+		warn "Sin terminal: guardian.yaml con valores por defecto. Ajusta con: sudo ./bin/guardianctl init --domain … --lan … --ai-cidr … --ai-host …"
+		"${bin}" init --yes
+	fi
+	# shellcheck disable=SC1090
+	set -a; . "${ENV_FILE}"; set +a
+}
+
 prepare_env() {
 	if [[ ! -f "${ENV_FILE}" ]]; then
 		install -m 0600 "${REPO_DIR}/.env.example" "${ENV_FILE}"
@@ -117,16 +166,6 @@ prepare_env() {
 
 	# shellcheck disable=SC1090
 	set -a; . "${ENV_FILE}"; set +a
-	if [[ -z "${WG_HOST:-}" ]] && [[ -t 0 ]]; then
-		warn "Revisa DOMAIN, TZ y WG_HOST en ${ENV_FILE}."
-		read -r -p "¿Editar ahora con ${EDITOR:-nano}? [s/N] " ans
-		if [[ "${ans:-}" =~ ^[sSyY]$ ]]; then
-			"${EDITOR:-nano}" "${ENV_FILE}"
-			set -a; . "${ENV_FILE}"; set +a
-		fi
-	fi
-	[[ -n "${DOMAIN:-}" ]] || die "DOMAIN vacío en ${ENV_FILE}."
-	log "Dominio: ${DOMAIN}  (id.${DOMAIN}, vpn.${DOMAIN})"
 }
 
 export_caddy_ca() {
@@ -218,6 +257,10 @@ main() {
 	check_os
 	install_docker
 	prepare_env
+	ensure_guardianctl
+	run_init
+	[[ -n "${DOMAIN:-}" ]] || die "DOMAIN vacío en ${ENV_FILE}."
+	log "Dominio: ${DOMAIN}  (id.${DOMAIN}, api.${DOMAIN}, logs.${DOMAIN}, vpn.${DOMAIN})"
 	export_caddy_ca
 	start_stack
 	apply_nftables
@@ -231,7 +274,9 @@ main() {
      OIDC "open-webui" con callback https://${DOMAIN}/oauth/oidc/callback
   4. Copia OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET a ${ENV_FILE} y ejecuta: make restart
   5. WireGuard: https://vpn.${DOMAIN} → asistente (host: ${WG_HOST:-<WG_HOST>}, puerto 51820)
-  6. Comprueba: make doctor
+  6. Firewall perimetral: sudo ./bin/guardianctl policy render fortios|opnsense
+     Firewall del host:   sudo ./install.sh --with-nftables
+  7. Comprueba: sudo make doctor   (guía completa: docs/instalacion.md)
 ========================================================================
 NEXT
 }

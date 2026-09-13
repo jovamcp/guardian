@@ -259,7 +259,7 @@ func renderBlocky(ms []*Manifest, upstreams []string) string {
 
 func cmdPolicy(args []string) int {
 	if len(args) < 2 || args[0] != "render" {
-		fmt.Fprintln(os.Stderr, "uso: guardianctl policy render egress [--upstreams 1.1.1.1,9.9.9.9]")
+		fmt.Fprintln(os.Stderr, "uso: guardianctl policy render egress|nftables|fortios|opnsense [--out archivo]")
 		return 2
 	}
 	root := repoRoot()
@@ -293,8 +293,10 @@ func cmdPolicy(args []string) int {
 		}
 		fmt.Printf("\nescritos %s y %s\naplica con: make restart-egress\n", squid, blocky)
 		return 0
+	case "nftables", "fortios", "opnsense":
+		return cmdPolicyRender(root, args[1], args[2:])
 	default:
-		fmt.Fprintln(os.Stderr, "policy render: objetivo desconocido (egress; fortios llega en la Fase 4)")
+		fmt.Fprintln(os.Stderr, "policy render: objetivos: egress | nftables | fortios | opnsense [--out archivo]")
 		return 2
 	}
 }

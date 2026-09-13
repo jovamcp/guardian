@@ -1,0 +1,63 @@
+# OPNsense — zona de IA de Guardian (generado por `guardianctl policy render opnsense`)
+
+Valores tomados de `guardian.yaml`:
+
+| Parámetro | Valor |
+|---|---|
+| VLAN de la zona de IA | `{{.VLAN}}` sobre `{{.ParentInterface}}` |
+| Red de la zona de IA | `{{.AICIDR}}` (puerta de enlace `{{.GatewayIP}}`) |
+| Host Guardian | `{{.HostIP}}` |
+| LAN | `{{.LANCIDR}}` (interfaz `{{.LANInterface}}`) |
+| WAN | interfaz `{{.WANInterface}}`{{if and .WANIP (ne .WANIP "0.0.0.0")}}, IP `{{.WANIP}}`{{end}} |
+| Red WireGuard | `{{.WGCIDR}}` |
+
+## 1. Interfaz VLAN
+
+**Interfaces → Other Types → VLAN → Add**: Parent `{{.ParentInterface}}`, VLAN tag `{{.VLAN}}`,
+descripción `ai-zone`. Luego **Interfaces → Assignments**: asigna la VLAN, actívala, nombre
+`AI_ZONE`, IPv4 estática `{{.GatewayIP}}/{{cidrBits .AICIDR}}`.
+
+Opcional: **Services → DHCPv4 → AI_ZONE** con una reserva estática para `{{.HostIP}}` (MAC del host Guardian).
+
+## 2. Alias (Firewall → Aliases)
+
+| Nombre | Tipo | Contenido |
+|---|---|---|
+| `LAN_NET` | Network(s) | `{{.LANCIDR}}` |
+| `AI_ZONE_NET` | Network(s) | `{{.AICIDR}}` |
+| `GUARDIAN_HOST` | Host(s) | `{{.HostIP}}` |
+| `GUARDIAN_HTTPS` | Port(s) | `443` |
+| `GUARDIAN_WG` | Port(s) | `51820` |
+| `AI_EGRESS_PORTS` | Port(s) | `443, 53, 123` |
+
+## 3. Reglas (Firewall → Rules)
+
+**LAN** (pestaña `{{.LANInterface}}`):
+
+| Acción | Proto | Origen | Destino | Puerto | Descripción |
+|---|---|---|---|---|---|
+| Pass | TCP | `LAN_NET` | `GUARDIAN_HOST` | `GUARDIAN_HTTPS` | LAN → Guardian (Open WebUI, Pocket ID, panel VPN) |
+
+**AI_ZONE** (orden importa; OPNsense evalúa de arriba abajo):
+
+| Acción | Proto | Origen | Destino | Puerto | Descripción |
+|---|---|---|---|---|---|
+| Block (log) | any | `AI_ZONE_NET` | `LAN_NET` | any | AI → LAN denegado (sin movimiento lateral) |
+| Block (log) | any | `AI_ZONE_NET` | `This Firewall` | any salvo 53/123 | La zona no administra el firewall |
+| Pass | TCP/UDP | `AI_ZONE_NET` | any | `AI_EGRESS_PORTS` | AI → Internet solo HTTPS, DNS y NTP |
+
+Marca **Log** en las reglas de bloqueo para verlas en *Firewall → Log Files*.
+
+## 4. WireGuard entrante (WAN)
+
+**Firewall → NAT → Port Forward → Add**: interfaz `{{.WANInterface}}`, protocolo UDP,
+destino *WAN address*, puerto `51820`, redirigir a `{{.HostIP}}` puerto `51820`, descripción
+`Guardian WireGuard`. Deja marcada la creación automática de la regla de firewall asociada.
+
+Es el **único** puerto abierto hacia Internet. No redirijas 443.
+
+## 5. Comprobación
+
+Desde un equipo de la LAN: `nmap -sT -p- {{.HostIP}}` debe mostrar solo 443 (y 22 si dejas SSH
+en el host). Desde la zona de IA no debe alcanzarse ninguna IP de `{{.LANCIDR}}`. Desde fuera,
+`nmap -sU -p 51820 <tu IP pública>` → `open|filtered`.

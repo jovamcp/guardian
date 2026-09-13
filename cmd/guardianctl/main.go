@@ -22,7 +22,8 @@ import (
 	"time"
 )
 
-const version = "0.1.0-dev"
+// version se fija en compilación: -ldflags "-X main.version=…" (Makefile lee VERSION).
+var version = "dev"
 
 // Servicios que deben estar en ejecución (nombres de servicio del compose).
 var requiredServices = []string{"caddy", "pocket-id", "open-webui", "ollama", "wg-easy",
@@ -50,7 +51,7 @@ func main() {
 	case "version":
 		fmt.Println("guardianctl", version)
 	case "init":
-		os.Exit(cmdInit())
+		os.Exit(cmdInit(os.Args[2:]))
 	case "key":
 		os.Exit(cmdKey(os.Args[2:]))
 	case "policy":
@@ -71,15 +72,18 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, `uso: guardianctl <subcomando>
 
-  init      exporta la CA interna de Caddy a compose/certs/root.crt e imprime los siguientes pasos
+  init      crea guardian.yaml (preguntas o flags: --domain --lan --ai-cidr --ai-host --ai-vlan
+            --wg-host --firewall --ntfy-url … ; --yes sin preguntas), sincroniza compose/.env y
+            los define de nftables, exporta la CA de Caddy e imprime los siguientes pasos
   status    estado de los servicios (docker compose ps)
   doctor    comprobaciones de salud y seguridad (requiere root)
   version   versión
   key       llaves virtuales del gateway LiteLLM:
               key create --name <agente> --models m1,m2 [--budget USD] [--rpm N] [--duration 30d]
               key list | key delete <sk-...>
-  policy    policy render egress   genera compose/squid/agents.conf y compose/blocky/config.yml
-                                   a partir de agents/*.yaml (allowlist por agente)
+  policy    policy render egress    allowlists de Squid y Blocky desde agents/*.yaml
+            policy render nftables  define de red desde guardian.yaml
+            policy render fortios|opnsense [--out f]  política del firewall perimetral
   agent     agent run <nombre|manifiesto.yaml> [--dry-run]   lanza un agente en el sandbox
             agent schedule apply|list|show <n>|remove <n>    schedule.cron → timers de systemd
   secret    vault cifrado con age: secret init | set <ref> | get <ref> | list | rm <ref>
@@ -326,18 +330,105 @@ func checkTLSIssuedByInternalCA(root string) error {
 	return nil
 }
 
-// cmdInit exporta la CA interna de Caddy a compose/certs/root.crt e imprime los siguientes pasos.
-func cmdInit() int {
+// cmdInit crea guardian.yaml (flags o preguntas), sincroniza compose/.env y los define de
+// nftables, exporta la CA interna de Caddy e imprime los siguientes pasos. Idempotente.
+func cmdInit(args []string) int {
 	root := repoRoot()
-	certDir := filepath.Join(root, "compose", "certs")
-	dst := filepath.Join(certDir, "root.crt")
-	if err := os.MkdirAll(certDir, 0o755); err != nil {
+	c := defaultConfig()
+	if existing, err := loadConfig(root); err == nil {
+		c = existing
+	}
+	fs := flag.NewFlagSet("init", flag.ContinueOnError)
+	fs.StringVar(&c.Domain, "domain", c.Domain, "dominio base (ai.home)")
+	fs.StringVar(&c.TZ, "tz", c.TZ, "zona horaria")
+	fs.StringVar(&c.LANCIDR, "lan", c.LANCIDR, "red LAN de usuarios")
+	fs.IntVar(&c.AIVLAN, "ai-vlan", c.AIVLAN, "VLAN de la zona de IA")
+	fs.StringVar(&c.AICIDR, "ai-cidr", c.AICIDR, "red de la zona de IA")
+	fs.StringVar(&c.AIHostIP, "ai-host", c.AIHostIP, "IP del host Guardian en la zona de IA")
+	fs.StringVar(&c.AIGatewayIP, "ai-gateway", c.AIGatewayIP, "puerta de enlace de la zona de IA")
+	fs.StringVar(&c.RemoteEndp, "wg-host", c.RemoteEndp, "nombre DNS público o IP para WireGuard")
+	fs.StringVar(&c.RemoteCIDR, "wg-cidr", c.RemoteCIDR, "red de los clientes WireGuard")
+	fs.StringVar(&c.FWVendor, "firewall", c.FWVendor, "fortios | opnsense | unifi")
+	fs.StringVar(&c.FWWANIP, "wan-ip", c.FWWANIP, "IP WAN (para la VIP de FortiOS)")
+	fs.IntVar(&c.RetentionDays, "retention-days", c.RetentionDays, "días de retención de logs")
+	fs.StringVar(&c.NtfyURL, "ntfy-url", c.NtfyURL, "servidor ntfy (vacío = sin alertas)")
+	fs.StringVar(&c.NtfyTopic, "ntfy-topic", c.NtfyTopic, "topic de ntfy")
+	noPrompt := fs.Bool("yes", false, "no preguntar; usar flags y valores por defecto")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if !*noPrompt && fs.NFlag() == 0 && isTerminal(os.Stdin) {
+		r := bufio.NewReader(os.Stdin)
+		fmt.Println("Configuración de Guardian (Enter acepta el valor entre corchetes):")
+		c.Domain = prompt(r, "Dominio base", c.Domain)
+		c.TZ = prompt(r, "Zona horaria", c.TZ)
+		c.LANCIDR = prompt(r, "Red LAN de usuarios", c.LANCIDR)
+		c.AICIDR = prompt(r, "Red de la zona de IA", c.AICIDR)
+		c.AIHostIP = prompt(r, "IP de este host en la zona de IA", c.AIHostIP)
+		c.AIGatewayIP = prompt(r, "Puerta de enlace de la zona de IA", firstHost(c.AICIDR))
+		if v := prompt(r, "VLAN de la zona de IA", fmt.Sprint(c.AIVLAN)); v != "" {
+			fmt.Sscanf(v, "%d", &c.AIVLAN)
+		}
+		c.RemoteEndp = prompt(r, "Nombre DNS público o IP para WireGuard", c.RemoteEndp)
+		c.FWVendor = prompt(r, "Firewall perimetral (fortios/opnsense/unifi)", c.FWVendor)
+		c.NtfyURL = prompt(r, "Servidor ntfy para alertas (vacío = ninguno)", c.NtfyURL)
+		if c.NtfyURL != "" {
+			c.NtfyTopic = prompt(r, "Topic de ntfy", c.NtfyTopic)
+		}
+	}
+	// Si no se fijó la puerta de enlace y la heredada no cae en la red de IA, se recalcula.
+	gwSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "ai-gateway" {
+			gwSet = true
+		}
+	})
+	if _, aiNet, err := net.ParseCIDR(c.AICIDR); err == nil && !gwSet {
+		if gw := net.ParseIP(c.AIGatewayIP); gw == nil || !aiNet.Contains(gw) {
+			c.AIGatewayIP = firstHost(c.AICIDR)
+		}
+	}
+	if err := c.validate(); err != nil {
 		fmt.Fprintln(os.Stderr, "init:", err)
 		return 1
 	}
-	if _, err := run("docker", composeArgs(root, "up", "-d", "caddy")...); err != nil {
-		fmt.Fprintln(os.Stderr, "init: no se pudo levantar caddy:", err)
+	if err := saveConfig(root, c); err != nil {
+		fmt.Fprintln(os.Stderr, "init:", err)
 		return 1
+	}
+	fmt.Println("escrito", configPath(root))
+	if err := syncEnv(root, c); err != nil {
+		fmt.Fprintln(os.Stderr, "init: compose/.env:", err)
+		return 1
+	}
+	fmt.Println("sincronizado compose/.env (DOMAIN, TZ, WG_HOST, LOKI_RETENTION_PERIOD, NTFY_*)")
+	changed, err := renderNftables(root, c)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "init: nftables:", err)
+		return 1
+	}
+	if len(changed) > 0 {
+		fmt.Println("actualizados define de", strings.Join(changed, ", "))
+	}
+	if err := exportCA(root); err != nil {
+		fmt.Fprintln(os.Stderr, "aviso: CA no exportada todavía:", err, "(install.sh lo hará al levantar caddy)")
+	}
+	printNextSteps(root)
+	return 0
+}
+
+// exportCA levanta solo caddy y copia su CA raíz a compose/certs/root.crt.
+func exportCA(root string) error {
+	if err := checkDocker(root); err != nil {
+		return err
+	}
+	certDir := filepath.Join(root, "compose", "certs")
+	dst := filepath.Join(certDir, "root.crt")
+	if err := os.MkdirAll(certDir, 0o755); err != nil {
+		return err
+	}
+	if _, err := run("docker", composeArgs(root, "up", "-d", "caddy")...); err != nil {
+		return fmt.Errorf("no se pudo levantar caddy: %v", err)
 	}
 	const src = "gd-caddy:/data/caddy/pki/authorities/local/root.crt"
 	var lastErr error
@@ -348,13 +439,11 @@ func cmdInit() int {
 		time.Sleep(2 * time.Second)
 	}
 	if lastErr != nil {
-		fmt.Fprintln(os.Stderr, "init: caddy no generó la CA:", lastErr)
-		return 1
+		return fmt.Errorf("caddy no generó la CA: %v", lastErr)
 	}
 	_ = os.Chmod(dst, 0o644)
 	fmt.Println("CA interna exportada a", dst)
-	printNextSteps(root)
-	return 0
+	return nil
 }
 
 func printNextSteps(root string) {
@@ -366,6 +455,10 @@ func printNextSteps(root string) {
 	if wgHost == "" {
 		wgHost = "<WG_HOST>"
 	}
+	fw := "fortios"
+	if c, err := loadConfig(root); err == nil {
+		fw = c.FWVendor
+	}
 	fmt.Printf(`
 Siguientes pasos:
   1. DNS local: %s, id.%s y vpn.%s → IP de este host.
@@ -374,8 +467,9 @@ Siguientes pasos:
      con callback https://%s/oauth/oidc/callback
   4. Copia OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET a compose/.env y ejecuta: make restart
   5. WireGuard: https://vpn.%s → asistente (host %s, puerto 51820) → QR para el móvil.
-  6. Comprueba: make doctor
-`, domain, domain, domain, domain, domain, domain, wgHost)
+  6. Firewall perimetral: guardianctl policy render %s   (y en el host: sudo ./install.sh --with-nftables)
+  7. Comprueba: make doctor
+`, domain, domain, domain, domain, domain, domain, wgHost, fw)
 }
 
 // ---------------------------------------------------------------- key (LiteLLM)
