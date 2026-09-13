@@ -49,7 +49,7 @@ release: pin-check
 	cp dist/guardianctl-linux-amd64 dist/guardianctl-linux-arm64 dist/guardian-$(VERSION)/bin/
 	tar -C dist -czf dist/guardian-$(VERSION).tar.gz guardian-$(VERSION)
 	rm -rf dist/guardian-$(VERSION)
-	cd dist && (command -v sha256sum >/dev/null && sha256sum || shasum -a 256) guardian-$(VERSION).tar.gz guardianctl-linux-amd64 guardianctl-linux-arm64 > SHA256SUMS
+	cd dist && if command -v sha256sum >/dev/null 2>&1; then sha256sum guardian-$(VERSION).tar.gz guardianctl-linux-amd64 guardianctl-linux-arm64 > SHA256SUMS; else shasum -a 256 guardian-$(VERSION).tar.gz guardianctl-linux-amd64 guardianctl-linux-arm64 > SHA256SUMS; fi
 	@echo "release en dist/ (sube el tarball, los binarios y SHA256SUMS al release v$(VERSION))"
 
 ## pin-images: fija las imágenes del compose por digest (regla dura 4). pin-check solo comprueba.
