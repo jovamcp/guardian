@@ -90,3 +90,15 @@ LLM efímera y sus secretos, como una ejecución manual.
   Docker ni salida a Internet (`gd_audit` es interna).
 - Si Loki arranca a la vez que Vector puede responder 500 unos segundos ("at least 1 live
   replicas"); Vector reintenta y no se pierde nada.
+
+## Panel de estado (v0.2)
+
+`sudo ./bin/guardianctl doctor schedule apply` crea un timer que ejecuta `doctor --report` cada
+15 minutos; el informe (JSON con cada comprobación) llega a Vector y al panel **Guardian · Estado**:
+comprobaciones OK, avisos y fallos del último informe, la tabla de problemas y el historial.
+`doctor --json` imprime el mismo informe por consola.
+
+## Copias de seguridad (v0.2)
+
+`docs/instalacion.md` § "Copias de seguridad" explica `guardianctl backup`. La última copia se
+refleja en `doctor` (aviso si tiene más de 48 h) y, por tanto, en el panel de estado.

@@ -2,6 +2,27 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Versionado semántico.
 
+## [0.2.0] — sin publicar
+
+### Añadido
+- **Copias de seguridad** con restic: `guardianctl backup init|run|list|restore|schedule`,
+  contraseña en el vault, pg_dump de LiteLLM, volúmenes como tar, timer de systemd y aviso en
+  `doctor` si la última copia es antigua.
+- **Releases firmados** con cosign (keyless) desde GitHub Actions; `install.sh` verifica la firma
+  de `SHA256SUMS` si cosign está instalado.
+- **gVisor opcional** para agentes: `install.sh --with-gvisor` y `sandbox.runtime: gvisor`.
+- **Dominio público con DNS-01**: `tls.mode: acme-dns` (Cloudflare o DuckDNS) con imagen de
+  Caddy propia construida en local; sin puertos nuevos.
+- **Panel "Guardian · Estado"** en Grafana: `doctor --report` cada 15 minutos vía Vector.
+- **UniFi**: `policy render unifi`. **Proxmox LXC**: `docs/proxmox-lxc.md` y comprobación en `doctor`.
+
+### Cambiado
+- El gateway LiteLLM se resuelve por `/etc/hosts` dentro de los agentes (necesario con gVisor).
+- `make release` genera `SHA256SUMS` de forma portable; el workflow de release publica firmas.
+
+### Decidido
+- `userns-remap` descartado: gVisor cubre el aislamiento adicional sin recrear `/var/lib/docker`.
+
 ## [0.1.0-beta.1] — 2026-09-12
 
 Primera beta pública. Todo probado en VMs de Debian 12 y Ubuntu 24.04 (arm64); pendiente de

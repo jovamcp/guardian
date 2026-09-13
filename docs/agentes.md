@@ -37,6 +37,7 @@ command: ["python3", "/app/main.py"]  # opcional
 mounts: ["./mi-agente:/app"]          # opcional; rutas relativas al manifiesto; siempre solo lectura
 env: {LOG_LEVEL: info}                # opcional; solo valores NO secretos
 network: {ip: 172.28.30.120}          # opcional; si falta se deriva del nombre
+sandbox: {runtime: gvisor}            # opcional (v0.2): runc por defecto; gvisor requiere install.sh --with-gvisor
 ```
 
 Guárdalo en `agents/<nombre>.yaml`. Los ejemplos viven en `agents/examples/`.
@@ -87,9 +88,9 @@ nueva política les aplica al instante.
 - **Identidad por IP fija** en `gd_agents`: solo `guardianctl` asigna IPs, y la red es interna,
   pero un proceso con acceso al daemon de Docker podría suplantarla. El daemon es el límite de
   confianza de toda la plataforma.
-- **Sin `userns-remap`** (DESIGN.md §11): el uid 10000 del agente es el uid 10000 del host.
-  No hay archivos del host con ese propietario; aun así, gVisor/remapeo llegan en v0.2.
-- **`schedule.cron` no se ejecuta todavía**; usa cron o un timer de systemd que llame a
-  `sandbox/runner.sh <nombre>` hasta la Fase 3.
+- **Sin `userns-remap`**: el uid 10000 del agente es el uid 10000 del host y no hay archivos
+  del host con ese propietario. Para un aislamiento de kernel adicional usa `sandbox.runtime:
+  gvisor` (v0.2): el agente corre sobre el kernel en espacio de usuario de gVisor.
+- **`schedule.cron`** se materializa con `guardianctl agent schedule apply` (timers de systemd).
 - El proxy no inspecciona el contenido TLS: controla **a dónde** habla el agente, no qué dice.
   La auditoría de contenido llega con Vector/Loki en la Fase 3.

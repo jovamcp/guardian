@@ -16,14 +16,16 @@ No sustituye el runtime ni el chat: los protege. Diseño completo en [`DESIGN.md
 
 ## Estado
 
-**v0.1.0-beta.1.** Las cuatro fases de v0.1 están completas y probadas en VMs de Debian 12 y
-Ubuntu 24.04; buscamos [beta testers](docs/beta.md) con hardware real. Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
+**v0.1.0-beta.1 publicado; v0.2 en desarrollo en `main`** (copias con restic, releases firmados,
+gVisor opcional, dominio público por DNS-01, panel de estado, UniFi y Proxmox LXC). Buscamos
+[beta testers](docs/beta.md) con hardware real. Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
 Ollama aislado, wg-easy 15, nftables con persistencia, LiteLLM con llaves virtuales en
 `api.<DOMAIN>`, red interna de agentes con Squid + Blocky por allowlist, sandbox
 (seccomp/AppArmor/uid 10000/solo lectura), vault con `age`, auditoría en `logs.<DOMAIN>` (Loki + Grafana con OIDC, alertas ntfy) y
 `guardianctl` (`init status doctor key policy agent secret`), `guardian.yaml`, políticas para
 FortiOS y OPNsense, imágenes por digest y releases con SHA-256. Aún no: UniFi, cosign, gVisor (v0.2). Pendiente de prueba en hardware real
-x86-64 y desde un móvil fuera de casa. Guías: [`docs/agentes.md`](docs/agentes.md), [`docs/auditoria.md`](docs/auditoria.md).
+x86-64 y desde un móvil fuera de casa. Guías: [`docs/agentes.md`](docs/agentes.md), [`docs/auditoria.md`](docs/auditoria.md),
+[`docs/proxmox-lxc.md`](docs/proxmox-lxc.md).
 
 ## Instalación rápida
 

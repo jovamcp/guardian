@@ -332,9 +332,38 @@ sudo docker compose --env-file compose/.env -f compose/docker-compose.yml pull
 sudo make up
 ```
 
-Copias de seguridad: `compose/.env` (secretos), `compose/certs/root.crt` y los volúmenes
-Docker `guardian_pocket_id_data`, `guardian_open_webui_data`, `guardian_wg_easy_data`,
-`guardian_caddy_data` (contiene la clave de la CA). En v0.2 llegará `restic` integrado.
+### Copias de seguridad (restic)
+
+1. `sudo apt install restic` y elige dónde guardarlas: un disco local (`/var/backups/guardian`),
+   tu NAS por SFTP (`sftp:usuario@nas:/guardian`) o S3.
+2. Frase de cifrado en el vault y repositorio en `guardian.yaml`:
+
+   ```bash
+   echo "una frase larga y única" | sudo ./bin/guardianctl secret set backup/restic
+   sudo ./bin/guardianctl init --backup-repo /var/backups/guardian   # o edita backup: en guardian.yaml
+   sudo ./bin/guardianctl backup init && sudo ./bin/guardianctl backup run
+   sudo ./bin/guardianctl backup schedule apply                       # a las 03:00 por defecto
+   ```
+
+3. Se copian `guardian.yaml`, `compose/.env`, `vault/`, la CA, los manifiestos, un volcado de la
+   base de datos de LiteLLM y los volúmenes (Pocket ID, Open WebUI, WireGuard, Grafana, Loki…).
+   Los modelos de Ollama no, salvo `include_models: true` (pesan GB y se redescargan).
+4. Recuperar: `sudo ./bin/guardianctl backup restore --to /tmp/recuperado` y sigue los pasos que
+   imprime. **Guarda la frase de restic y `vault/key.txt` fuera del host**: sin ellos no hay copia.
+
+### Dominio público (opcional)
+
+Si tienes un dominio propio en Cloudflare o DuckDNS, Guardian puede usar certificados de
+Let's Encrypt en lugar de la CA interna, sin abrir ningún puerto (reto DNS-01):
+
+```bash
+sudo ./bin/guardianctl init --domain casa.tudominio.org --tls-mode acme-dns --dns-provider cloudflare --acme-email tu@correo
+# pon ACME_DNS_TOKEN=<token con permiso Zone.DNS:Edit> en compose/.env
+sudo make up      # construye la imagen de Caddy con el módulo DNS y pide los certificados
+```
+
+Los nombres `casa.tudominio.org`, `id.`, `api.`, `logs.` y `vpn.` deben seguir resolviendo a la
+IP **interna** del host en tu DNS local (o como registros públicos con IP privada).
 
 ## Problemas frecuentes
 
