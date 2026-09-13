@@ -58,6 +58,13 @@ func cmdAgent(args []string) int {
 			fmt.Fprintln(os.Stderr, "agent run:", err)
 			return 1
 		}
+		if m.Runtime == "gvisor" {
+			out, _ := run("docker", "info", "--format", "{{json .Runtimes}}")
+			if !strings.Contains(out, "runsc") {
+				fmt.Fprintln(os.Stderr, "agent run: el manifiesto pide sandbox.runtime: gvisor pero Docker no tiene el runtime runsc (sudo ./install.sh --with-gvisor)")
+				return 1
+			}
+		}
 	}
 
 	// Secretos: directorio tmpfs en el host, archivos 0400 propiedad del uid del agente.
@@ -170,6 +177,7 @@ func cmdAgent(args []string) int {
 func buildRunArgs(root string, m *Manifest, seccomp, secretsDir string) []string {
 	args := []string{"run", "--rm", "--init",
 		"--name", "gd-agent-" + m.Name, "--hostname", m.Name,
+		"--label", "guardian.runtime=" + m.Runtime,
 		"--label", "guardian.agent=" + m.Name,
 		"--network", "gd_agents", "--ip", m.IP, "--dns", agentsDNS, "--dns-search", ".",
 		"--user", agentUID,
@@ -193,6 +201,14 @@ func buildRunArgs(root string, m *Manifest, seccomp, secretsDir string) []string
 		"-e", "http_proxy=http://" + agentsProxy + ":3128",
 		"-e", "NO_PROXY=litellm," + agentsLLM + ",localhost,127.0.0.1",
 		"-e", "no_proxy=litellm," + agentsLLM + ",localhost,127.0.0.1",
+	}
+	// El gateway se resuelve por /etc/hosts: bajo gVisor el DNS embebido de Docker (127.0.0.11)
+	// no es alcanzable desde la netstack del sandbox y "litellm" no resolvería. La IP es fija.
+	args = append(args, "--add-host", "litellm:"+agentsLLM)
+	if m.Runtime == "gvisor" {
+		// gVisor intercepta las syscalls con su propio kernel en espacio de usuario; el perfil
+		// seccomp y AppArmor del host se siguen pasando (runsc los acepta o los ignora sin fallar).
+		args = append(args, "--runtime", "runsc")
 	}
 	if len(m.Models) > 0 {
 		args = append(args, "-e", "GUARDIAN_MODEL="+m.Models[0])

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Guardian v0.1 — instalador.
-# Uso:  sudo ./install.sh [--with-nftables]
+# Uso:  sudo ./install.sh [--with-nftables] [--with-gvisor]
 #
 # Idempotente: se puede ejecutar varias veces. No usa `curl | bash` (regla dura 3):
 # Docker se instala desde el repositorio apt oficial con keyring verificado.
@@ -12,10 +12,12 @@ ENV_FILE="${COMPOSE_DIR}/.env"
 CERT_DIR="${COMPOSE_DIR}/certs"
 COMPOSE=(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_DIR}/docker-compose.yml")
 WITH_NFTABLES=0
+WITH_GVISOR=0
 
 for arg in "$@"; do
 	case "${arg}" in
 		--with-nftables) WITH_NFTABLES=1 ;;
+		--with-gvisor) WITH_GVISOR=1 ;;
 		-h|--help) sed -n '2,7p' "$0"; exit 0 ;;
 		*) echo "Argumento desconocido: ${arg}" >&2; exit 2 ;;
 	esac
@@ -215,6 +217,30 @@ start_stack() {
 	"${COMPOSE[@]}" ps
 }
 
+install_gvisor() {
+	# gVisor (runsc) como runtime opcional para agentes (sandbox.runtime: gvisor).
+	# Fuente: https://gvisor.dev/docs/user_guide/install/ (repositorio apt oficial, clave verificada).
+	[[ "${WITH_GVISOR}" -eq 1 ]] || return 0
+	if command -v runsc >/dev/null 2>&1 && docker info 2>/dev/null | grep -q runsc; then
+		log "gVisor ya instalado: $(runsc --version | head -1)"
+		return
+	fi
+	log "Instalando gVisor (runsc) desde el repositorio apt oficial…"
+	export DEBIAN_FRONTEND=noninteractive
+	apt-get install -y -qq gnupg >/dev/null
+	if [[ ! -s /usr/share/keyrings/gvisor-archive-keyring.gpg ]]; then
+		curl -fsSL https://gvisor.dev/archive.key | gpg --dearmor -o /usr/share/keyrings/gvisor-archive-keyring.gpg
+	fi
+	echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/gvisor-archive-keyring.gpg] https://storage.googleapis.com/gvisor/releases release main" \
+		> /etc/apt/sources.list.d/gvisor.list
+	apt-get update -qq
+	apt-get install -y -qq runsc >/dev/null
+	# Registra el runtime "runsc" en /etc/docker/daemon.json y reinicia el daemon.
+	runsc install >/dev/null
+	systemctl restart docker
+	log "gVisor instalado: $(runsc --version | head -1). Los agentes con sandbox.runtime: gvisor lo usarán."
+}
+
 apply_nftables() {
 	[[ "${WITH_NFTABLES}" -eq 1 ]] || { log "nftables omitido (usa --with-nftables para aplicarlo)."; return; }
 	command -v nft >/dev/null 2>&1 || apt-get install -y -qq nftables >/dev/null
@@ -278,6 +304,7 @@ main() {
 	log "Dominio: ${DOMAIN}  (id.${DOMAIN}, api.${DOMAIN}, logs.${DOMAIN}, vpn.${DOMAIN})"
 	export_caddy_ca
 	start_stack
+	install_gvisor
 	apply_nftables
 	cat <<NEXT
 

@@ -43,6 +43,7 @@ type Manifest struct {
 	Env      map[string]string
 	IP       string
 	Path     string
+	Runtime  string // runc (por defecto) | gvisor
 }
 
 type Service struct {
@@ -79,6 +80,10 @@ func loadManifest(path string) (*Manifest, error) {
 		m.Env[k] = ystr(v)
 	}
 	m.IP = ystr(ymap(doc["network"])["ip"])
+	m.Runtime = ystr(ymap(doc["sandbox"])["runtime"])
+	if m.Runtime == "" {
+		m.Runtime = "runc"
+	}
 	if err := m.validate(); err != nil {
 		return nil, fmt.Errorf("%s: %v", path, err)
 	}
@@ -117,6 +122,9 @@ func (m *Manifest) validate() error {
 		if ip == nil || !subnet.Contains(ip) {
 			return fmt.Errorf("network.ip %q fuera de %s", m.IP, agentsSubnet)
 		}
+	}
+	if m.Runtime != "runc" && m.Runtime != "gvisor" {
+		return fmt.Errorf("sandbox.runtime debe ser runc o gvisor (tienes %q)", m.Runtime)
 	}
 	for _, mnt := range m.Mounts {
 		if strings.Count(mnt, ":") != 1 {
