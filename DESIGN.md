@@ -205,6 +205,16 @@ Gateway propio en Go (sustituye LiteLLM), multi-nodo, cloud burst controlado.
 - **Digest antes del release** con `scripts/pin-images.sh`; `main` va fijado desde la Fase 4.
 - **Release = tarball + SHA-256** (`make release`); firma con cosign en v0.2.
 
+### Tomadas para v0.2
+
+- **Dashboard propio = panel de estado en Grafana** alimentado por `doctor --json` (sin nueva
+  superficie de autenticación).
+- **Copias con restic** desde `guardianctl backup`, contraseña en el vault, timer de systemd.
+- **Releases firmados con cosign keyless** en GitHub Actions; `install.sh` verifica si cosign está.
+- **gVisor opcional para agentes** (`sandbox.runtime: gvisor`); `userns-remap` descartado.
+- **Dominio real con DNS challenge** mediante imagen de Caddy propia (xcaddy + módulo DNS).
+- **UniFi y Proxmox LXC** como guías renderizadas/documentadas, con comprobaciones en `doctor`.
+
 ### Abiertas
 
 - wg-easy vs Tailscale como opción por defecto de acceso remoto.

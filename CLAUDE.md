@@ -7,9 +7,9 @@ nftables, sandbox de agentes con egreso por allowlist y auditoría. Diseño comp
 Documentación y comentarios en español; identificadores, archivos y commits en inglés.
 
 ## Fase actual
-**v0.1.0-beta.1: las cuatro fases completas y probadas en VMs.** En marcha: programa beta con
-hardware real (`docs/beta.md`). Después: v0.2 (DESIGN.md §9). Planes por fase en `docs/prompts/`.
-Antes de cada release: `make pin-images && make release`; CI debe estar en verde.
+**v0.2 en desarrollo** (`VERSION=0.2.0-dev`); v0.1.0-beta.1 publicado y en beta (`docs/beta.md`).
+Plan de v0.2: `docs/prompts/05-v0.2.md` (UniFi, restic, cosign, gVisor, DNS challenge, panel de
+estado, Proxmox LXC). Antes de cada release: `make pin-images && make release`; CI en verde.
 
 ## Reglas duras (no negociables)
 1. Ollama nunca publica puertos en el host; solo existe en la red Docker `gd_ai`.
