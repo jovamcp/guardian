@@ -196,6 +196,15 @@ Gateway propio en Go (sustituye LiteLLM), multi-nodo, cloud burst controlado.
 - **Alertas por webhook directo a ntfy** (`?template=grafana`), sin servicio intermedio.
 - **`schedule.cron` → timers de systemd** generados por `guardianctl agent schedule`.
 
+### Tomadas durante la Fase 4
+
+- **`guardian.yaml` es la fuente de verdad de la red**; `guardianctl init` lo crea y de él derivan
+  `compose/.env` (valores no secretos) y los `define` de nftables (`policy render nftables`).
+- **Plantillas perimetrales con `text/template`**: FortiOS genera CLI; OPNsense genera una guía con
+  los valores puestos (sin XML de importación en v0.1).
+- **Digest antes del release** con `scripts/pin-images.sh`; `main` va fijado desde la Fase 4.
+- **Release = tarball + SHA-256** (`make release`); firma con cosign en v0.2.
+
 ### Abiertas
 
 - wg-easy vs Tailscale como opción por defecto de acceso remoto.

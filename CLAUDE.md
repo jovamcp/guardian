@@ -7,9 +7,9 @@ nftables, sandbox de agentes con egreso por allowlist y auditoría. Diseño comp
 Documentación y comentarios en español; identificadores, archivos y commits en inglés.
 
 ## Fase actual
-**Fases 1, 2 y 3 completadas y probadas en VMs.** Siguiente: **Fase 4 (semanas 7–8)**: `guardianctl
-init` con `guardian.yaml`, `policy render fortios` (y OPNsense), imágenes por digest, docs finales
-y beta testers. Planes: `docs/prompts/0{1,2,3}-fase-*.md`. Guías: `docs/agentes.md`, `docs/auditoria.md`.
+**Fase 4 (semanas 7–8): cierre de v0.1 — en curso.** `guardian.yaml` + `guardianctl init`,
+`policy render nftables|fortios|opnsense`, imágenes por digest, release, CI y programa beta.
+Plan: `docs/prompts/04-fase-4.md`. Fases 1–3 completas (`docs/prompts/0{1,2,3}-fase-*.md`).
 
 ## Reglas duras (no negociables)
 1. Ollama nunca publica puertos en el host; solo existe en la red Docker `gd_ai`.
