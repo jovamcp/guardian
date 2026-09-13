@@ -1,0 +1,137 @@
+# Vector: recoge los logs de los contenedores (vía docker-socket-proxy), los descartes de nftables
+# (journald del kernel) y los eventos por petición de LiteLLM, los normaliza y los envía a Loki.
+# Fuentes: docs en la cabecera de compose/docker-compose.yml.
+data_dir: /var/lib/vector
+
+api:
+  enabled: true
+  address: 0.0.0.0:8686
+
+sources:
+  containers:
+    type: docker_logs
+    docker_host: http://docker-socket-proxy:2375
+    include_containers: ["gd-"]
+    exclude_containers: ["gd-vector"]
+
+  kernel:
+    type: journald
+    include_matches:
+      _TRANSPORT: ["kernel"]
+
+  # LiteLLM envía un POST JSON (lista de StandardLoggingPayload) por petición
+  # (GENERIC_LOGGER_ENDPOINT=http://vector:8687/litellm, callback generic_api).
+  litellm_events:
+    type: http_server
+    address: 0.0.0.0:8687
+    path: /litellm
+    decoding:
+      codec: json
+
+transforms:
+  containers_norm:
+    type: remap
+    inputs: [containers]
+    source: |
+      .service = replace(string!(.container_name), "gd-", "")
+      .agent = .label."guardian.agent"
+      if starts_with(string!(.container_name), "gd-agent-") { .service = "agent" }
+      .event = "log"
+      # Squid: access.log → decisión de egreso
+      if .service == "squid" {
+        parts = split(string!(.message), r'\s+')
+        if length(parts) >= 7 && (contains(string!(parts[3]), "TCP_") || contains(string!(parts[3]), "NONE")) {
+          .client_ip = parts[2]
+          .decision = parts[3]
+          .method = parts[5]
+          .destination = parts[6]
+          .event = if contains(string!(parts[3]), "DENIED") { "egress_denied" } else { "egress_allowed" }
+        }
+      }
+      # Blocky: consultas (queryLog console):
+      #   "queryLog: query resolved client_ip=… question_name=example.com. question_type=A
+      #    response_code=NXDOMAIN response_reason=BLOCKED (agent-x: /.*/) …"
+      if .service == "blocky" && contains(string!(.message), "queryLog: query resolved") {
+        m = parse_regex(string!(.message), r'client_ip=(?P<client_ip>\S+).*question_name=(?P<question>\S+) question_type=(?P<qtype>\S+) response_code=(?P<rcode>\S+) response_reason=(?P<reason>[A-Z_]+)') ?? {}
+        .client_ip = m.client_ip
+        .destination = m.question
+        .qtype = m.qtype
+        .event = if m.reason == "BLOCKED" { "dns_blocked" } else { "dns_resolved" }
+      }
+      # Pocket ID: logs HTTP (logfmt)
+      if .service == "pocket-id" {
+        lf = parse_logfmt(string!(.message)) ?? {}
+        .path = lf.path
+        .status = lf.status
+        .client_ip = lf.ip
+        if lf.path == "/authorize" { .event = "login_authorize" }
+        if lf.path == "/api/oidc/token" { .event = "login_token" }
+        if exists(lf.error_code) { .event = "auth_error"; .error_code = lf.error_code }
+        if contains(string!(.message), "Health check failed") { .event = "service_error" }
+      }
+      # Caddy: accesos JSON
+      if .service == "caddy" {
+        j = parse_json(string!(.message)) ?? {}
+        if exists(j.request) {
+          .event = "http_access"
+          .host = j.request.host
+          .path = j.request.uri
+          .status = j.status
+          .client_ip = j.request.remote_ip
+        }
+      }
+      del(.label)
+      del(.container_created_at)
+      del(.image)
+
+  kernel_norm:
+    type: remap
+    inputs: [kernel]
+    source: |
+      .service = "nftables"
+      msg = string!(.message)
+      if starts_with(msg, "gd-drop-in") { .event = "fw_drop_input" }
+      else if starts_with(msg, "gd-drop-fwd") { .event = "fw_drop_forward" }
+      else { abort }
+      m = parse_regex(msg, r'SRC=(?P<src>[0-9a-f.:]+) DST=(?P<dst>[0-9a-f.:]+).*PROTO=(?P<proto>[A-Z0-9]+)(?: SPT=(?P<spt>\d+) DPT=(?P<dpt>\d+))?') ?? {}
+      .client_ip = m.src
+      .destination = m.dst
+      .proto = m.proto
+      .dport = m.dpt
+      .message = msg
+      only = ["timestamp", "message", "service", "event", "client_ip", "destination", "proto", "dport", "host"]
+      . = filter(.) -> |k, _| { includes(only, k) }
+
+  litellm_norm:
+    type: remap
+    inputs: [litellm_events]
+    source: |
+      .service = "litellm"
+      .event = "llm_request"
+      .key_alias = .metadata.user_api_key_alias
+      .agent = .metadata.user_api_key_alias
+      .client_ip = .metadata.requester_ip_address
+      .spend = .response_cost
+      .status = if exists(.status) { .status } else { "success" }
+      .error = .error_str
+      # Privacidad: no guardamos prompts ni respuestas, solo metadatos
+      # (LiteLLM ya los redacta con turn_off_message_logging; por si acaso).
+      only = ["timestamp", "service", "event", "key_alias", "agent", "client_ip", "model", "call_type",
+              "status", "error", "spend", "prompt_tokens", "completion_tokens", "total_tokens",
+              "startTime", "endTime", "id", "cache_hit"]
+      . = filter(.) -> |k, _| { includes(only, k) }
+
+sinks:
+  loki:
+    type: loki
+    inputs: [containers_norm, kernel_norm, litellm_norm]
+    endpoint: http://loki:3100
+    encoding:
+      codec: json
+    labels:
+      service: "{{ service }}"
+      event: "{{ event }}"
+    out_of_order_action: accept
+    remove_label_fields: false
+    healthcheck:
+      enabled: true

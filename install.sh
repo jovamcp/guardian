@@ -112,6 +112,8 @@ prepare_env() {
 	ensure_env_var LITELLM_MASTER_KEY; gen_secret_if_empty LITELLM_MASTER_KEY "echo sk-\$(openssl rand -hex 24)"
 	ensure_env_var LITELLM_SALT_KEY;  gen_secret_if_empty LITELLM_SALT_KEY "echo sk-\$(openssl rand -hex 24)"
 	ensure_env_var LITELLM_DB_PASSWORD; gen_secret_if_empty LITELLM_DB_PASSWORD "openssl rand -hex 24"
+	ensure_env_var GRAFANA_ADMIN_PASSWORD; gen_secret_if_empty GRAFANA_ADMIN_PASSWORD "openssl rand -hex 16"
+	for v in GRAFANA_OAUTH_CLIENT_ID GRAFANA_OAUTH_CLIENT_SECRET LOKI_RETENTION_PERIOD NTFY_URL NTFY_TOPIC; do ensure_env_var "$v"; done
 
 	# shellcheck disable=SC1090
 	set -a; . "${ENV_FILE}"; set +a

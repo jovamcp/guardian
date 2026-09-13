@@ -31,6 +31,14 @@
 #                ghcr.io/0xerr0r/blocky:vX.Y.Z)
 #   - Squid (Fase 2): https://hub.docker.com/r/ubuntu/squid (config en /etc/squid/squid.conf,
 #                snippets en /etc/squid/conf.d/, puerto 3128)
+#   - Vector (Fase 3): https://vector.dev/docs/reference/configuration/sources/docker_logs/
+#                (docker_host por TCP), .../sources/journald/, .../sinks/loki/ (labels templadas)
+#   - docker-socket-proxy (Fase 3): https://github.com/Tecnativa/docker-socket-proxy
+#                (variables CONTAINERS/EVENTS/INFO/POST; puerto 2375)
+#   - Loki (Fase 3): https://grafana.com/docs/loki/latest/operations/storage/retention/
+#                (compactor.retention_enabled, limits_config.retention_period, tsdb v13)
+#   - Grafana (Fase 3): https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/
+#                configure-authentication/generic-oauth/ (GF_AUTH_GENERIC_OAUTH_*, /login/generic_oauth)
 
 name: guardian
 
@@ -67,6 +75,13 @@ networks:
     ipam:
       config:
         - subnet: 172.28.40.0/24
+  # Auditoría (Fase 3): red interna donde viven el proxy del socket de Docker, Vector y Loki.
+  gd_audit:
+    name: gd_audit
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.28.50.0/24
 
 volumes:
   caddy_data:
@@ -76,6 +91,9 @@ volumes:
   ollama_data:
   wg_easy_data:
   litellm_db_data:
+  loki_data:
+  grafana_data:
+  vector_data:
 
 services:
   caddy:
@@ -92,7 +110,9 @@ services:
       # así que las reglas de origen de DOCKER-USER no lo verían. IPv6 queda para v0.2.
       - "0.0.0.0:443:443/tcp"
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Se monta el directorio, no el archivo: un bind de archivo suelto sigue apuntando al
+      # inodo antiguo cuando se reemplaza el Caddyfile (git pull, tar) y `caddy reload` no ve nada.
+      - ./caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
@@ -256,6 +276,8 @@ services:
       # Los modelos vienen del archivo, no de la base de datos ni de la UI.
       STORE_MODEL_IN_DB: "False"
       LITELLM_LOG: INFO
+      # Auditoría: un evento JSON por petición (alias de llave, modelo, tokens, coste) hacia Vector.
+      GENERIC_LOGGER_ENDPOINT: http://vector:8687/litellm
     volumes:
       - ./litellm/config.yaml:/app/config.yaml:ro
     networks:
@@ -263,6 +285,7 @@ services:
       gd_ai: {}             # Ollama y Postgres
       gd_agents:            # los agentes llaman a http://litellm:4000 con su llave virtual
         ipv4_address: 172.28.30.10
+      gd_audit: {}          # eventos de auditoría por petición hacia Vector (Fase 3)
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=5)"]
       interval: 30s
@@ -314,6 +337,159 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # ---------------------------------------------------------------- Fase 3: auditoría
+  docker-socket-proxy:
+    # Único contenedor que ve el socket de Docker: solo lectura (GET) de contenedores, logs y
+    # eventos; POST/exec/build deshabilitados. Red interna sin salida.
+    image: ghcr.io/tecnativa/docker-socket-proxy:v0.5.0
+    container_name: gd-docker-socket-proxy
+    restart: unless-stopped
+    logging: *default-logging
+    read_only: true
+    tmpfs:
+      - /run
+      - /tmp                # el entrypoint escribe haproxy.cfg en /tmp
+    environment:
+      CONTAINERS: "1"
+      EVENTS: "1"
+      INFO: "1"
+      VERSION: "1"
+      PING: "1"
+      POST: "0"
+      EXEC: "0"
+      IMAGES: "0"
+      NETWORKS: "0"
+      VOLUMES: "0"
+      SERVICES: "0"
+      TASKS: "0"
+      NODES: "0"
+      SWARM: "0"
+      SYSTEM: "0"
+      BUILD: "0"
+      COMMIT: "0"
+      CONFIGS: "0"
+      SECRETS: "0"
+      PLUGINS: "0"
+      DISTRIBUTION: "0"
+      AUTH: "0"
+      SESSION: "0"
+      ALLOW_RESTARTS: "0"
+      ALLOW_START: "0"
+      ALLOW_STOP: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - gd_audit
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2375/_ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  vector:
+    image: timberio/vector:0.58.0-debian
+    container_name: gd-vector
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - docker-socket-proxy
+      - loki
+    environment:
+      TZ: ${TZ}
+      VECTOR_CONFIG: /etc/vector/vector.yaml
+      DOCKER_HOST: http://docker-socket-proxy:2375
+    volumes:
+      - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - vector_data:/var/lib/vector
+      # Descartes de nftables (kernel) vía journald, solo lectura.
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+    networks:
+      - gd_audit
+    healthcheck:
+      # La imagen debian de Vector no trae wget/curl; basta con que el API acepte conexiones.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8686"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  loki:
+    image: grafana/loki:3.7.7
+    container_name: gd-loki
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["-config.file=/etc/loki/loki.yaml", "-config.expand-env=true"]
+    environment:
+      TZ: ${TZ}
+      # Retención en horas = audit.retention_days × 24 (guardian.yaml). Por defecto 30 días.
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-720h}
+    volumes:
+      - ./loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/loki
+    networks:
+      - gd_audit
+    # Sin healthcheck de Docker: la imagen de Loki es distroless (sin shell ni wget).
+    # `guardianctl doctor` comprueba /ready desde la red gd_audit.
+
+  grafana:
+    image: grafana/grafana:13.2.1
+    container_name: gd-grafana
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - loki
+    environment:
+      TZ: ${TZ}
+      GF_SERVER_ROOT_URL: https://logs.${DOMAIN}
+      GF_SERVER_DOMAIN: logs.${DOMAIN}
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # OIDC con Pocket ID (cliente "grafana"; callback https://logs.<DOMAIN>/login/generic_oauth).
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+      GF_AUTH_GENERIC_OAUTH_NAME: Pocket ID
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID: ${GRAFANA_OAUTH_CLIENT_ID}
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: ${GRAFANA_OAUTH_CLIENT_SECRET}
+      GF_AUTH_GENERIC_OAUTH_SCOPES: openid email profile groups
+      GF_AUTH_GENERIC_OAUTH_AUTH_URL: https://id.${DOMAIN}/authorize
+      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: https://id.${DOMAIN}/api/oidc/token
+      GF_AUTH_GENERIC_OAUTH_API_URL: https://id.${DOMAIN}/api/oidc/userinfo
+      GF_AUTH_GENERIC_OAUTH_USE_PKCE: "true"
+      GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
+      GF_AUTH_GENERIC_OAUTH_TLS_CLIENT_CA: /certs/root.crt
+      # Grupo "admins" de Pocket ID → Admin; el resto, Viewer.
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: contains(groups[*], 'admins') && 'Admin' || 'Viewer'
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT: "false"
+      # Sin formulario local: solo OIDC. El admin local queda para emergencias por
+      # GF_AUTH_DISABLE_LOGIN_FORM=false en compose/.env si hiciera falta.
+      GF_AUTH_DISABLE_LOGIN_FORM: ${GRAFANA_DISABLE_LOGIN_FORM:-true}
+      # Alertas → ntfy (webhook con plantilla de Grafana). Vacío = sin alertas externas.
+      NTFY_URL: ${NTFY_URL:-}
+      NTFY_TOPIC: ${NTFY_TOPIC:-guardian}
+    extra_hosts:
+      - "id.${DOMAIN}:host-gateway"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./certs/root.crt:/certs/root.crt:ro
+    networks:
+      - gd_front
+      - gd_audit
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   wg-easy:
     image: ghcr.io/wg-easy/wg-easy:15

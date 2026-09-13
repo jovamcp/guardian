@@ -10,6 +10,9 @@ ports:
 log:
   level: info
   format: text
+queryLog:
+  type: console
+  logRetentionDays: 0
 blocking:
   blockType: nxDomain
   blockTTL: 1m

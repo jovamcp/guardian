@@ -24,3 +24,11 @@ litellm_settings:
   drop_params: true
   # Sin telemetría saliente.
   telemetry: false
+  # Logs en JSON (Vector los analiza).
+  json_logs: true
+  # Auditoría (Fase 3): un evento por petición hacia Vector (GENERIC_LOGGER_ENDPOINT en compose),
+  # solo metadatos: alias de la llave, modelo, tokens, coste, estado. Nunca prompts ni respuestas.
+  # Fuente: https://docs.litellm.ai/docs/proxy/logging (generic_api, turn_off_message_logging)
+  success_callback: ["generic_api"]
+  failure_callback: ["generic_api"]
+  turn_off_message_logging: true

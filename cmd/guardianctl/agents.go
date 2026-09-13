@@ -220,6 +220,8 @@ func renderBlocky(ms []*Manifest, upstreams []string) string {
 		fmt.Fprintf(&b, "      - %s\n", u)
 	}
 	b.WriteString("ports:\n  dns: 53\n  http: 4000\nlog:\n  level: info\n  format: text\n")
+	// Auditoría (Fase 3): una línea por consulta con cliente, dominio y resultado (BLOCKED/RESOLVED).
+	b.WriteString("queryLog:\n  type: console\n  logRetentionDays: 0\n")
 	b.WriteString("blocking:\n  blockType: nxDomain\n  blockTTL: 1m\n  denylists:\n    all:\n      - |\n        /.*/\n")
 	for _, m := range ms {
 		if len(m.Allow) > 0 {
