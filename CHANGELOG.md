@@ -32,6 +32,11 @@ hardware x86-64 real y de móvil fuera de casa.
 - Imágenes fijadas por digest, `make release` (tarball + SHA256SUMS), CI en GitHub Actions.
 - Programa beta (`docs/beta.md`).
 
+### Ensayo general
+- VM limpia de Ubuntu 24.04 (arm64): desde el tarball verificado, `install.sh` sin terminal tarda
+  8 min (incluye instalar Docker y descargar 13 imágenes) y `doctor` queda 13/13 (con aviso de
+  ntfy sin configurar) medio minuto después. Objetivo de la beta: < 15 min con los pasos manuales.
+
 ### Conocido
 - Pocket ID 2.14.0 puede reiniciarse solo en VMs con saltos de reloj ("host is not registered").
 - Sin `userns-remap` (v0.2), sin firma cosign (v0.2), plantilla UniFi pendiente.

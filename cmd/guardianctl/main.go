@@ -742,10 +742,19 @@ func checkLokiIngesting(string) error {
 			return fmt.Errorf("no se pudo obtener la imagen de sonda %s: %v", probeImage, err)
 		}
 	}
-	out, err := run("docker", "run", "--rm", "--network", "gd_audit", "--cap-drop", "ALL", "--user", agentUID, probeImage,
-		"wget", "-q", "-O", "-", "http://loki:3100/ready")
+	// Loki tarda 1–2 minutos en declararse listo tras arrancar (anillo del ingester): se reintenta.
+	var out string
+	var err error
+	for attempt := 0; attempt < 9; attempt++ {
+		out, err = run("docker", "run", "--rm", "--network", "gd_audit", "--cap-drop", "ALL", "--user", agentUID, probeImage,
+			"wget", "-q", "-O", "-", "http://loki:3100/ready")
+		if err == nil && strings.Contains(out, "ready") {
+			break
+		}
+		time.Sleep(10 * time.Second)
+	}
 	if err != nil || !strings.Contains(out, "ready") {
-		return fmt.Errorf("Loki no responde ready en gd_audit: %v %s", err, strings.TrimSpace(out))
+		return fmt.Errorf("Loki no responde ready en gd_audit tras 90 s: %v %s", err, strings.TrimSpace(out))
 	}
 	// Alguna línea de cualquier servicio en los últimos 15 minutos.
 	start := time.Now().Add(-15 * time.Minute).UnixNano()
