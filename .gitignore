@@ -10,3 +10,6 @@ bin/
 
 # binario suelto de `go build ./...` en la raíz
 /guardianctl
+
+# artefactos de release
+dist/

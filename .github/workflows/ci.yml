@@ -1,0 +1,48 @@
+name: ci
+on:
+  push: {branches: [main]}
+  pull_request:
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version: "1.22"}
+      - name: Go (fmt, vet, test, build)
+        run: |
+          test -z "$(gofmt -l cmd)"
+          go vet ./...
+          go test ./...
+          go build -o bin/guardianctl ./cmd/guardianctl
+      - name: Bash (sintaxis y shellcheck)
+        run: |
+          bash -n install.sh scripts/pin-images.sh sandbox/runner.sh
+          sudo apt-get install -y -qq shellcheck >/dev/null
+          shellcheck -S warning install.sh scripts/pin-images.sh sandbox/runner.sh
+      - name: Compose (config con .env de prueba)
+        run: |
+          cp .env.example compose/.env
+          sed -i 's/^WEBUI_SECRET_KEY=.*/WEBUI_SECRET_KEY=x/; s/^POCKET_ID_ENCRYPTION_KEY=.*/POCKET_ID_ENCRYPTION_KEY=dGVzdA==/; s/^LITELLM_MASTER_KEY=.*/LITELLM_MASTER_KEY=sk-x/; s/^LITELLM_SALT_KEY=.*/LITELLM_SALT_KEY=sk-y/; s/^LITELLM_DB_PASSWORD=.*/LITELLM_DB_PASSWORD=p/; s/^GRAFANA_ADMIN_PASSWORD=.*/GRAFANA_ADMIN_PASSWORD=g/' compose/.env
+          docker compose --env-file compose/.env -f compose/docker-compose.yml config --quiet
+          test "$(docker compose --env-file compose/.env -f compose/docker-compose.yml config | grep -c 'published:')" = 2
+          rm -f compose/.env
+      - name: Imágenes fijadas por digest
+        run: scripts/pin-images.sh --check
+      - name: nftables (nft -c)
+        run: |
+          sudo apt-get install -y -qq nftables >/dev/null
+          sudo nft -c -f nftables/guardian.nft
+          sudo nft -c -f nftables/docker-user.nft
+      - name: Caddyfile y Vector
+        run: |
+          docker run --rm -v "$PWD/compose/caddy:/etc/caddy:ro" -e DOMAIN=ai.home caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          docker run --rm -v "$PWD/compose/vector/vector.yaml:/etc/vector/vector.yaml:ro" timberio/vector:0.58.0-debian validate --no-environment /etc/vector/vector.yaml
+      - name: policy render con guardian.yaml de ejemplo
+        run: |
+          cp guardian.yaml.example guardian.yaml
+          ./bin/guardianctl policy render fortios > /dev/null
+          ./bin/guardianctl policy render opnsense | grep -vq '{{'
+          ./bin/guardianctl policy render egress > /dev/null
+          git diff --exit-code -- compose/squid/agents.conf compose/blocky/config.yml

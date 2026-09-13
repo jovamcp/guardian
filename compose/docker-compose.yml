@@ -97,7 +97,7 @@ volumes:
 
 services:
   caddy:
-    image: caddy:2
+    image: caddy:2@sha256:13ba145cba2f3e28fa801994876e4c086d1b95d5aa2a520a734765ffb6b12017
     container_name: gd-caddy
     restart: unless-stopped
     logging: *default-logging
@@ -127,7 +127,7 @@ services:
       start_period: 10s
 
   pocket-id:
-    image: ghcr.io/pocket-id/pocket-id:v2
+    image: ghcr.io/pocket-id/pocket-id:v2@sha256:01540977dcf4c7b41b1159f34d68e4632f2658d62790e460ca65a42722b13c4a
     container_name: gd-pocket-id
     restart: unless-stopped
     logging: *default-logging
@@ -150,7 +150,7 @@ services:
       start_period: 10s
 
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main
+    image: ghcr.io/open-webui/open-webui:main@sha256:1a6399d237dc392a2313e0ca826020b3fd5d22536357840eb63393d18dc8b924
     container_name: gd-open-webui
     restart: unless-stopped
     logging: *default-logging
@@ -203,7 +203,7 @@ services:
       start_period: 40s
 
   ollama:
-    image: ollama/ollama
+    image: ollama/ollama@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
     container_name: gd-ollama
     restart: unless-stopped
     logging: *default-logging
@@ -237,7 +237,7 @@ services:
 
   # ---------------------------------------------------------------- Fase 2: gateway LLM
   litellm-db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     container_name: gd-litellm-db
     restart: unless-stopped
     logging: *default-logging
@@ -259,7 +259,7 @@ services:
 
   litellm:
     # Versión fijada (regla dura 4; la doc de LiteLLM desaconseja tags móviles).
-    image: ghcr.io/berriai/litellm:v1.100.1
+    image: ghcr.io/berriai/litellm:v1.100.1@sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf
     container_name: gd-litellm
     restart: unless-stopped
     logging: *default-logging
@@ -295,7 +295,7 @@ services:
 
   # ---------------------------------------------------------------- Fase 2: egreso de agentes
   blocky:
-    image: ghcr.io/0xerr0r/blocky:v0.35.0
+    image: ghcr.io/0xerr0r/blocky:v0.35.0@sha256:4f165b63db0d76c96ecc47c7a8f57caeedc003a912bdce29abb0e283ce02e16b
     container_name: gd-blocky
     restart: unless-stopped
     logging: *default-logging
@@ -316,7 +316,7 @@ services:
       start_period: 10s
 
   squid:
-    image: ubuntu/squid:6.6-24.04_beta
+    image: ubuntu/squid:6.6-24.04_beta@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029
     container_name: gd-squid
     restart: unless-stopped
     logging: *default-logging
@@ -342,7 +342,7 @@ services:
   docker-socket-proxy:
     # Único contenedor que ve el socket de Docker: solo lectura (GET) de contenedores, logs y
     # eventos; POST/exec/build deshabilitados. Red interna sin salida.
-    image: ghcr.io/tecnativa/docker-socket-proxy:v0.5.0
+    image: ghcr.io/tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
     container_name: gd-docker-socket-proxy
     restart: unless-stopped
     logging: *default-logging
@@ -388,7 +388,7 @@ services:
       retries: 3
 
   vector:
-    image: timberio/vector:0.58.0-debian
+    image: timberio/vector:0.58.0-debian@sha256:1c1ea358c617ea0b23003d5af87f7a678b30f8f7096437e680380c47fc13d2d9
     container_name: gd-vector
     restart: unless-stopped
     logging: *default-logging
@@ -417,7 +417,7 @@ services:
       start_period: 15s
 
   loki:
-    image: grafana/loki:3.7.7
+    image: grafana/loki:3.7.7@sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500
     container_name: gd-loki
     restart: unless-stopped
     logging: *default-logging
@@ -435,7 +435,7 @@ services:
     # `guardianctl doctor` comprueba /ready desde la red gd_audit.
 
   grafana:
-    image: grafana/grafana:13.2.1
+    image: grafana/grafana:13.2.1@sha256:f772d434e8fab0049deb2b1b30abd43342bcfca1537614aa8d36080232cf4283
     container_name: gd-grafana
     restart: unless-stopped
     logging: *default-logging
@@ -492,7 +492,7 @@ services:
       start_period: 30s
 
   wg-easy:
-    image: ghcr.io/wg-easy/wg-easy:15
+    image: ghcr.io/wg-easy/wg-easy:15@sha256:0e7bc9d34e86ddcaa92bc700d4d7dc9b33291dbc07ac8d13382f7c2095f949ec
     container_name: gd-wg-easy
     restart: unless-stopped
     logging: *default-logging

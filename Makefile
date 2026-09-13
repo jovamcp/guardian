@@ -2,7 +2,7 @@
 SUDO    := $(if $(filter 0,$(shell id -u)),,sudo)
 COMPOSE := $(SUDO) docker compose --env-file compose/.env -f compose/docker-compose.yml
 
-.PHONY: up down restart reload-caddy render-egress restart-egress ps logs build doctor status nft-check nft-apply
+.PHONY: up down restart reload-caddy render-egress restart-egress release pin-images pin-check ps logs build doctor status nft-check nft-apply
 
 up:
 	$(COMPOSE) up -d
@@ -34,8 +34,30 @@ ps:
 logs:
 	$(COMPOSE) logs -f --tail=100
 
+VERSION := $(shell cat VERSION)
+LDFLAGS := -s -w -X main.version=$(VERSION)
+
 build:
-	go build -o bin/guardianctl ./cmd/guardianctl
+	go build -ldflags "$(LDFLAGS)" -o bin/guardianctl ./cmd/guardianctl
+
+## release: tarball reproducible + binarios linux/amd64 y arm64 + SHA256SUMS en dist/.
+release: pin-check
+	rm -rf dist && mkdir -p dist/guardian-$(VERSION)/bin
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o dist/guardianctl-linux-amd64 ./cmd/guardianctl
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o dist/guardianctl-linux-arm64 ./cmd/guardianctl
+	git archive --format=tar HEAD | tar -x -C dist/guardian-$(VERSION)
+	cp dist/guardianctl-linux-amd64 dist/guardianctl-linux-arm64 dist/guardian-$(VERSION)/bin/
+	tar -C dist -czf dist/guardian-$(VERSION).tar.gz guardian-$(VERSION)
+	rm -rf dist/guardian-$(VERSION)
+	cd dist && shasum -a 256 guardian-$(VERSION).tar.gz guardianctl-linux-amd64 guardianctl-linux-arm64 > SHA256SUMS
+	@echo "release en dist/ (sube el tarball, los binarios y SHA256SUMS al release v$(VERSION))"
+
+## pin-images: fija las imágenes del compose por digest (regla dura 4). pin-check solo comprueba.
+pin-images:
+	scripts/pin-images.sh
+
+pin-check:
+	scripts/pin-images.sh --check
 
 doctor: build
 	$(SUDO) ./bin/guardianctl doctor
