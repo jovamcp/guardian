@@ -195,6 +195,10 @@ func splitKey(s string) (string, string, bool) {
 func stripComment(s string) string {
 	inS, inD := false, false
 	for i := 0; i < len(s); i++ {
+		if inD && s[i] == '\\' {
+			i++ // carácter escapado dentro de comillas dobles
+			continue
+		}
 		switch s[i] {
 		case '\'':
 			if !inD {
@@ -264,6 +268,10 @@ func splitCSV(s string) []string {
 	inS, inD := false, false
 	start := 0
 	for i := 0; i < len(s); i++ {
+		if inD && s[i] == '\\' {
+			i++ // carácter escapado dentro de comillas dobles
+			continue
+		}
 		switch s[i] {
 		case '\'':
 			if !inD {

@@ -21,8 +21,11 @@ const (
 )
 
 func cmdAgent(args []string) int {
+	if len(args) >= 1 && args[0] == "schedule" {
+		return cmdAgentSchedule(args[1:])
+	}
 	if len(args) < 2 || args[0] != "run" {
-		fmt.Fprintln(os.Stderr, "uso: guardianctl agent run <nombre|manifiesto.yaml> [--dry-run]")
+		fmt.Fprintln(os.Stderr, "uso: guardianctl agent run <nombre|manifiesto.yaml> [--dry-run]\n     guardianctl agent schedule apply|list|show <nombre>|remove <nombre>")
 		return 2
 	}
 	root := repoRoot()

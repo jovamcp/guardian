@@ -54,6 +54,17 @@ empty:
 	}
 }
 
+func TestParseYAMLEscapedQuotesInline(t *testing.T) {
+	m, err := parseYAML(`command: ["python3", "-c", "print(\"hola, mundo\") # no es comentario"]` + "\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := ystrs(m["command"])
+	if len(got) != 3 || got[2] != `print("hola, mundo") # no es comentario` {
+		t.Fatalf("comillas escapadas: %q", got)
+	}
+}
+
 func TestParseYAMLRejectsTabs(t *testing.T) {
 	if _, err := parseYAML("a:\n\tb: 1\n"); err == nil {
 		t.Fatal("se esperaba error por tabuladores")
