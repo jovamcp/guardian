@@ -6,7 +6,7 @@
 //   - comentarios con "#" y líneas vacías
 //
 // No soporta anclas, documentos múltiples, bloques literales "|" ni claves complejas.
-package main
+package yamlmini
 
 import (
 	"bufio"
@@ -22,7 +22,7 @@ type yamlLine struct {
 	num    int
 }
 
-func parseYAML(src string) (map[string]any, error) {
+func Parse(src string) (map[string]any, error) {
 	var lines []yamlLine
 	sc := bufio.NewScanner(strings.NewReader(src))
 	n := 0
@@ -326,12 +326,12 @@ func parseScalar(s string) any {
 }
 
 // Accesores tolerantes para navegar el resultado.
-func ymap(v any) map[string]any {
+func Map(v any) map[string]any {
 	m, _ := v.(map[string]any)
 	return m
 }
 
-func ystr(v any) string {
+func Str(v any) string {
 	switch t := v.(type) {
 	case nil:
 		return ""
@@ -342,17 +342,17 @@ func ystr(v any) string {
 	}
 }
 
-func ystrs(v any) []string {
+func Strs(v any) []string {
 	l, ok := v.([]any)
 	if !ok {
-		if s := ystr(v); s != "" {
+		if s := Str(v); s != "" {
 			return []string{s}
 		}
 		return nil
 	}
 	out := make([]string, 0, len(l))
 	for _, x := range l {
-		out = append(out, ystr(x))
+		out = append(out, Str(x))
 	}
 	return out
 }

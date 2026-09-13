@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/jovamcp/guardian/internal/yamlmini"
 	"net"
 	"os"
 	"path/filepath"
@@ -72,12 +73,12 @@ func loadConfig(root string) (Config, error) {
 	if err != nil {
 		return c, err
 	}
-	doc, err := parseYAML(string(raw))
+	doc, err := yamlmini.Parse(string(raw))
 	if err != nil {
 		return c, fmt.Errorf("guardian.yaml: %v", err)
 	}
 	str := func(v any, def string) string {
-		if s := ystr(v); s != "" {
+		if s := yamlmini.Str(v); s != "" {
 			return s
 		}
 		return def
@@ -86,7 +87,7 @@ func loadConfig(root string) (Config, error) {
 		if n, ok := v.(int64); ok {
 			return int(n)
 		}
-		if s := ystr(v); s != "" {
+		if s := yamlmini.Str(v); s != "" {
 			if n, err := strconv.Atoi(s); err == nil {
 				return n
 			}
@@ -96,40 +97,40 @@ func loadConfig(root string) (Config, error) {
 	c.Domain = str(doc["domain"], c.Domain)
 	c.TZ = str(doc["tz"], c.TZ)
 	c.LANCIDR = str(doc["lan_cidr"], c.LANCIDR)
-	ai := ymap(doc["ai_zone"])
+	ai := yamlmini.Map(doc["ai_zone"])
 	c.AIVLAN = num(ai["vlan"], c.AIVLAN)
 	c.AICIDR = str(ai["cidr"], c.AICIDR)
 	c.AIHostIP = str(ai["host_ip"], c.AIHostIP)
 	c.AIGatewayIP = str(ai["gateway_ip"], "")
-	rm := ymap(doc["remote"])
+	rm := yamlmini.Map(doc["remote"])
 	c.RemoteProv = str(rm["provider"], c.RemoteProv)
 	c.RemoteCIDR = str(rm["cidr"], c.RemoteCIDR)
 	c.RemoteEndp = str(rm["endpoint"], "")
-	rt := ymap(doc["runtime"])
+	rt := yamlmini.Map(doc["runtime"])
 	c.RuntimeKind = str(rt["kind"], c.RuntimeKind)
 	c.RuntimeGPU = str(rt["gpu"], c.RuntimeGPU)
-	fw := ymap(doc["firewall"])
+	fw := yamlmini.Map(doc["firewall"])
 	c.FWVendor = str(fw["vendor"], c.FWVendor)
 	c.FWParent = str(fw["parent_interface"], c.FWParent)
 	c.FWLAN = str(fw["lan_interface"], c.FWLAN)
 	c.FWWAN = str(fw["wan_interface"], c.FWWAN)
 	c.FWWANIP = str(fw["wan_ip"], c.FWWANIP)
-	c.RetentionDays = num(ymap(doc["audit"])["retention_days"], c.RetentionDays)
-	nt := ymap(ymap(doc["alerts"])["ntfy"])
+	c.RetentionDays = num(yamlmini.Map(doc["audit"])["retention_days"], c.RetentionDays)
+	nt := yamlmini.Map(yamlmini.Map(doc["alerts"])["ntfy"])
 	c.NtfyURL = str(nt["url"], "")
 	c.NtfyTopic = str(nt["topic"], c.NtfyTopic)
-	tl := ymap(doc["tls"])
+	tl := yamlmini.Map(doc["tls"])
 	c.TLSMode = str(tl["mode"], c.TLSMode)
 	c.DNSProvider = str(tl["dns_provider"], c.DNSProvider)
 	c.ACMEEmail = str(tl["email"], "")
-	bk := ymap(doc["backup"])
+	bk := yamlmini.Map(doc["backup"])
 	c.BackupRepo = str(bk["repository"], "")
 	c.BackupPassword = str(bk["password"], c.BackupPassword)
 	c.BackupCron = str(bk["schedule"], c.BackupCron)
 	if v, ok := bk["include_models"].(bool); ok {
 		c.BackupModels = v
 	}
-	keep := ymap(bk["keep"])
+	keep := yamlmini.Map(bk["keep"])
 	c.KeepDaily = num(keep["daily"], c.KeepDaily)
 	c.KeepWeekly = num(keep["weekly"], c.KeepWeekly)
 	c.KeepMonthly = num(keep["monthly"], c.KeepMonthly)

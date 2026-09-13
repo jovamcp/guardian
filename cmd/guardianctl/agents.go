@@ -4,6 +4,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/jovamcp/guardian/internal/yamlmini"
 	"hash/fnv"
 	"net"
 	"os"
@@ -56,31 +57,31 @@ func loadManifest(path string) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	doc, err := parseYAML(string(raw))
+	doc, err := yamlmini.Parse(string(raw))
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", path, err)
 	}
 	m := &Manifest{Path: path, Services: map[string]Service{}, Env: map[string]string{}}
-	m.Name = ystr(doc["name"])
-	m.Image = ystr(doc["image"])
-	llm := ymap(doc["llm"])
-	m.Models = ystrs(llm["models"])
-	m.KeyMode = ystr(llm["key"])
-	m.Allow = ystrs(ymap(doc["egress"])["allow"])
-	for k, v := range ymap(doc["services"]) {
-		sv := ymap(v)
-		m.Services[k] = Service{URL: ystr(sv["url"]), Token: ystr(sv["token"])}
+	m.Name = yamlmini.Str(doc["name"])
+	m.Image = yamlmini.Str(doc["image"])
+	llm := yamlmini.Map(doc["llm"])
+	m.Models = yamlmini.Strs(llm["models"])
+	m.KeyMode = yamlmini.Str(llm["key"])
+	m.Allow = yamlmini.Strs(yamlmini.Map(doc["egress"])["allow"])
+	for k, v := range yamlmini.Map(doc["services"]) {
+		sv := yamlmini.Map(v)
+		m.Services[k] = Service{URL: yamlmini.Str(sv["url"]), Token: yamlmini.Str(sv["token"])}
 	}
-	res := ymap(doc["resources"])
-	m.CPUs, m.Memory, m.PIDs = ystr(res["cpus"]), ystr(res["memory"]), ystr(res["pids"])
-	m.Cron = ystr(ymap(doc["schedule"])["cron"])
-	m.Command = ystrs(doc["command"])
-	m.Mounts = ystrs(doc["mounts"])
-	for k, v := range ymap(doc["env"]) {
-		m.Env[k] = ystr(v)
+	res := yamlmini.Map(doc["resources"])
+	m.CPUs, m.Memory, m.PIDs = yamlmini.Str(res["cpus"]), yamlmini.Str(res["memory"]), yamlmini.Str(res["pids"])
+	m.Cron = yamlmini.Str(yamlmini.Map(doc["schedule"])["cron"])
+	m.Command = yamlmini.Strs(doc["command"])
+	m.Mounts = yamlmini.Strs(doc["mounts"])
+	for k, v := range yamlmini.Map(doc["env"]) {
+		m.Env[k] = yamlmini.Str(v)
 	}
-	m.IP = ystr(ymap(doc["network"])["ip"])
-	m.Runtime = ystr(ymap(doc["sandbox"])["runtime"])
+	m.IP = yamlmini.Str(yamlmini.Map(doc["network"])["ip"])
+	m.Runtime = yamlmini.Str(yamlmini.Map(doc["sandbox"])["runtime"])
 	if m.Runtime == "" {
 		m.Runtime = "runc"
 	}

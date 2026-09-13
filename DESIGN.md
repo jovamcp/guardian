@@ -215,10 +215,17 @@ Gateway propio en Go (sustituye LiteLLM), multi-nodo, cloud burst controlado.
 - **Dominio real con DNS challenge** mediante imagen de Caddy propia (xcaddy + módulo DNS).
 - **UniFi y Proxmox LXC** como guías renderizadas/documentadas, con comprobaciones en `doctor`.
 
+### Tomadas para v0.3
+
+- **`gd-gateway` (Go, stdlib) sustituye a LiteLLM y Postgres**: proxy compatible con OpenAI con
+  llaves virtuales, límites, presupuesto, auditoría y enrutado; almacén JSON en volumen.
+- **Multi-nodo = varios upstreams por modelo** con salud, reparto y failover.
+- **Cloud burst** con upstreams `openai` marcados `cloud`, permiso por llave, presupuesto mensual y
+  tabla de precios; alerta al 80 %.
+
 ### Abiertas
 
 - wg-easy vs Tailscale como opción por defecto de acceso remoto.
-- LiteLLM (Python, pesado) vs gateway propio desde v0.2.
 - Pocket ID vs Authelia si hace falta LDAP o políticas por grupo más finas.
 - Squid con allowlist de CONNECT vs proxy TLS-terminating (rompe pinning, más visibilidad).
 - ¿Podman rootless para la plataforma cuando la GPU lo soporte bien?

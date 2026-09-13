@@ -1,4 +1,4 @@
-package main
+package yamlmini
 
 import (
 	"reflect"
@@ -27,46 +27,46 @@ schedule:
   cron: ""
 empty:
 `
-	m, err := parseYAML(src)
+	m, err := Parse(src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ystr(m["name"]) != "hello-agent" || ystr(m["image"]) != "python:3.12-alpine@sha256:abc" {
+	if Str(m["name"]) != "hello-agent" || Str(m["image"]) != "python:3.12-alpine@sha256:abc" {
 		t.Fatalf("escalares: %v", m)
 	}
-	if got := ystrs(ymap(m["llm"])["models"]); !reflect.DeepEqual(got, []string{"qwen2.5:0.5b", "llama3.1:8b"}) {
+	if got := Strs(Map(m["llm"])["models"]); !reflect.DeepEqual(got, []string{"qwen2.5:0.5b", "llama3.1:8b"}) {
 		t.Fatalf("lista en línea: %v", got)
 	}
-	if got := ystrs(ymap(m["egress"])["allow"]); !reflect.DeepEqual(got, []string{"api.github.com", "pypi.org"}) {
+	if got := Strs(Map(m["egress"])["allow"]); !reflect.DeepEqual(got, []string{"api.github.com", "pypi.org"}) {
 		t.Fatalf("lista en bloque: %v", got)
 	}
-	if ystr(ymap(ymap(m["services"])["github"])["url"]) != "https://api.github.com" {
+	if Str(Map(Map(m["services"])["github"])["url"]) != "https://api.github.com" {
 		t.Fatalf("url con dos puntos: %v", m["services"])
 	}
-	if ystr(ymap(m["resources"])["memory"]) != "512m" || ystr(ymap(m["resources"])["cpus"]) != "1" {
+	if Str(Map(m["resources"])["memory"]) != "512m" || Str(Map(m["resources"])["cpus"]) != "1" {
 		t.Fatalf("mapa en línea: %v", m["resources"])
 	}
-	if got := ystrs(m["command"]); !reflect.DeepEqual(got, []string{"python", "-c", "print(1)"}) {
+	if got := Strs(m["command"]); !reflect.DeepEqual(got, []string{"python", "-c", "print(1)"}) {
 		t.Fatalf("command: %v", got)
 	}
-	if ystr(ymap(m["schedule"])["cron"]) != "" || m["empty"] != nil {
+	if Str(Map(m["schedule"])["cron"]) != "" || m["empty"] != nil {
 		t.Fatalf("vacíos: %v %v", m["schedule"], m["empty"])
 	}
 }
 
 func TestParseYAMLEscapedQuotesInline(t *testing.T) {
-	m, err := parseYAML(`command: ["python3", "-c", "print(\"hola, mundo\") # no es comentario"]` + "\n")
+	m, err := Parse(`command: ["python3", "-c", "print(\"hola, mundo\") # no es comentario"]` + "\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := ystrs(m["command"])
+	got := Strs(m["command"])
 	if len(got) != 3 || got[2] != `print("hola, mundo") # no es comentario` {
 		t.Fatalf("comillas escapadas: %q", got)
 	}
 }
 
 func TestParseYAMLRejectsTabs(t *testing.T) {
-	if _, err := parseYAML("a:\n\tb: 1\n"); err == nil {
+	if _, err := Parse("a:\n\tb: 1\n"); err == nil {
 		t.Fatal("se esperaba error por tabuladores")
 	}
 }

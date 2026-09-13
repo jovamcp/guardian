@@ -7,7 +7,8 @@ nftables, sandbox de agentes con egreso por allowlist y auditoría. Diseño comp
 Documentación y comentarios en español; identificadores, archivos y commits en inglés.
 
 ## Fase actual
-**v0.2.0 publicado** (releases firmados con cosign desde `release.yml` al empujar un tag `v*`); beta en marcha (`docs/beta.md`).
+**v0.3 en desarrollo** (`VERSION=0.3.0-dev`): gateway propio `gd-gateway` en lugar de LiteLLM/Postgres,
+multi-nodo y cloud burst. Plan: `docs/prompts/06-v0.3.md`. v0.2.0 publicado (release firmado).
 Plan de v0.2: `docs/prompts/05-v0.2.md` (UniFi, restic, cosign, gVisor, DNS challenge, panel de
 estado, Proxmox LXC). Antes de cada release: `make pin-images && make release`; CI en verde.
 

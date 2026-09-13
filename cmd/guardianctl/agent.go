@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/jovamcp/guardian/internal/yamlmini"
 	"net/http"
 	"os"
 	"os/exec"
@@ -104,7 +105,7 @@ func cmdAgent(args []string) int {
 				fmt.Fprintf(os.Stderr, "agent run: no se pudo crear la llave LLM (HTTP %d %v %v)\n", code, out, err)
 				return 1
 			}
-			key := ystr(out["key"])
+			key := yamlmini.Str(out["key"])
 			cleanup = append(cleanup, func() {
 				litellmCall(root, http.MethodPost, "/key/delete", map[string]any{"keys": []string{key}})
 			})
