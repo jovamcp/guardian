@@ -224,7 +224,7 @@ export_caddy_ca() {
 start_stack() {
 	log "Levantando la plataforma…"
 	"${COMPOSE[@]}" pull --quiet --ignore-buildable 2>/dev/null || "${COMPOSE[@]}" pull --quiet
-	"${COMPOSE[@]}" up -d --build --remove-orphans
+	"${COMPOSE[@]}" up -d --build --remove-orphans --wait --wait-timeout 300
 	# El Caddyfile va montado: si cambió, `up` no reinicia caddy. Recarga en caliente.
 	"${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || true
 	"${COMPOSE[@]}" ps

@@ -7,7 +7,7 @@ COMPOSE := $(SUDO) docker compose --env-file compose/.env -f compose/docker-comp
 .PHONY: up down restart reload-caddy render-egress restart-egress release pin-images pin-check ps logs build doctor status nft-check nft-apply
 
 up:
-	$(COMPOSE) up -d
+	$(COMPOSE) up -d --wait --wait-timeout 300
 
 down:
 	$(COMPOSE) down
@@ -39,8 +39,11 @@ logs:
 VERSION := $(shell cat VERSION)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
+## build: compila guardianctl si hay Go; sin Go (instalación desde tarball) usa bin/guardianctl.
 build:
-	go build -ldflags "$(LDFLAGS)" -o bin/guardianctl ./cmd/guardianctl
+	@if command -v go >/dev/null 2>&1; then go build -ldflags "$(LDFLAGS)" -o bin/guardianctl ./cmd/guardianctl; \
+	elif [ -x bin/guardianctl ]; then :; \
+	else echo "falta Go y no hay bin/guardianctl (ejecuta ./install.sh o descarga el binario del release)" >&2; exit 1; fi
 
 ## release: tarball reproducible + binarios linux/amd64 y arm64 + SHA256SUMS en dist/.
 release: pin-check

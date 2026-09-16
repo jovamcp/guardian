@@ -946,7 +946,8 @@ func restartStack(root string, changed []string) error {
 			fmt.Fprintln(os.Stderr, "AVISO: docker compose pull:", err)
 		}
 	}
-	cmd := exec.Command("docker", composeArgs(root, "up", "-d", "--build", "--remove-orphans")...)
+	// --wait: no pasar el doctor hasta que los contenedores recreados estén sanos.
+	cmd := exec.Command("docker", composeArgs(root, "up", "-d", "--build", "--remove-orphans", "--wait", "--wait-timeout", "300")...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return err
