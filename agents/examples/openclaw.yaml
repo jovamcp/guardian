@@ -23,6 +23,7 @@ resources:
   pids: 256
 
 # Estado y configuración en /home/agent (tmpfs del sandbox); OpenClaw los busca vía OPENCLAW_*.
+# Probado en caliente (2026-09-16, VM Debian 12 arm64): `agent --local` responde en ~17 s.
 tmpfs:
   - /home/agent/.openclaw:256m
 

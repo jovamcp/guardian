@@ -17,6 +17,10 @@ Grafana y avisa al móvil cuando pasa algo que debes mirar.
 | `model_check` | guardianctl | Resultado de la comprobación de modelos de Ollama (`doctor`: digests fijados y blobs presentes; `model verify`: SHA-256 de cada blob). `status` ok/warn/fail y lista `problems` |
 | `log` | todos | Cualquier otra línea de log de un contenedor `gd-*` |
 
+**Disco**: Loki deja de ingerir cuando el sistema de archivos de Docker supera el 90 % (su WAL entra en
+throttling y responde `Ingester is shutting down`); Vector reintenta y no se pierde nada si liberas
+espacio pronto. `doctor` avisa al 80 % y falla al 90 %.
+
 Cómo llega a Loki:
 
 1. **docker-socket-proxy** es el único contenedor que ve `/var/run/docker.sock` (montado de solo

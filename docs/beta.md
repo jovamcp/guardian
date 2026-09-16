@@ -84,6 +84,7 @@ Abre un issue por cada problema con la plantilla **Beta**. Incluye siempre:
 | Fecha | Máquina | SO | Versión | Instalación | `doctor` | Notas |
 |---|---|---|---|---|---|---|
 | 2026-09 | Apple Silicon (VMs Lima Debian 12 / Ubuntu 24.04, arm64) | Debian 12, Ubuntu 24.04 | v0.1–v0.3 | < 15 min | verde | Entorno de desarrollo; ver trampas en `CLAUDE.md` |
+| 2026-09-16 | Apple Silicon (VM Lima Debian 12, arm64) | Debian 12 | v0.3.0-dev → v0.4.0-rc1 → rc2 (`guardianctl upgrade`), `--rollback` a rc1 y vuelta | ~2 min por salto (copia restic de 1,1 GB incluida) | verde salvo timers (repo no es de root en la VM) | Migración LiteLLM, `nftables/guardian.nft.new`, `model pin`, Hermes Agent y OpenClaw ejecutados en el sandbox con auditoría en Loki. Lección: las imágenes de agentes (8,4 GB) llevaron el disco al 95 % y Loki dejó de ingerir → comprobación de disco en `doctor` |
 | pendiente | x86-64 (EC2 o mini-PC) | Debian 12 | v0.4.0-rc | — | — | Primera prueba fuera de Apple Silicon (tarea 6 de `docs/prompts/07-v0.4.md`) |
 
 ## Qué NO está todavía

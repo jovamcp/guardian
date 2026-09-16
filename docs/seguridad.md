@@ -108,7 +108,7 @@ docker run --rm -v "$PWD:/mnt:ro" koalaman/shellcheck:stable -S style install.sh
 docker run --rm -i hadolint/hadolint < compose/gateway/Dockerfile
 docker run --rm -v "$PWD:/repo:ro" aquasec/trivy:latest config /repo
 docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:latest detect --source /repo
-sudo make doctor                        # 19 comprobaciones en el host
+sudo make doctor                        # 20 comprobaciones en el host
 ```
 
 Y las pruebas de la VM que acompañan a cada commit: manifiestos con `mounts` maliciosos,

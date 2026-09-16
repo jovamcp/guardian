@@ -22,10 +22,13 @@ resources:
   memory: 2g
   pids: 256
 
-# El wrapper de la imagen fuerza HOME=/opt/data y escribe ahí config, .env y state.db.
-# La raíz es de solo lectura: /opt/data es un tmpfs efímero solo de este contenedor.
+# El wrapper de la imagen fuerza HOME=/opt/data y escribe ahí config, .env, skills y state.db.
+# La raíz es de solo lectura: /opt/data es un tmpfs efímero solo de este contenedor. El bootstrap
+# (stage2) además escribe en /run/s6 aunque no haya s6 (ruta "no PID 1"): tmpfs pequeño en /run.
+# Probado en caliente (2026-09-16, VM Debian 12 arm64): responde en ~25 s con qwen2.5:0.5b.
 tmpfs:
   - /opt/data:512m
+  - /run:16m
 
 env:
   HERMES_TASK: "Responde en una frase y en español: ¿para qué sirve un firewall?"

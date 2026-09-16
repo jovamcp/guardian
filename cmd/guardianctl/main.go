@@ -222,6 +222,7 @@ func cmdDoctor(args []string) int {
 		{"timers de systemd: el código que ejecutan pertenece a root", checkTimerOwnership},
 		{"migraciones entre versiones al día (" + migrate.StateFile + ")", checkMigrations},
 		{"modelos de Ollama: fijados sin cambios y blobs completos", checkModels},
+		{"disco de Docker por debajo del 80 % (Loki deja de ingerir al 90 %)", checkDiskSpace},
 	}
 	host, _ := os.Hostname()
 	rep := doctorReport{Timestamp: time.Now().UTC().Format(time.RFC3339), Version: version, Host: host}

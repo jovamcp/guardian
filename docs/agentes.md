@@ -109,7 +109,7 @@ al terminar). No hacen falta cuentas ni credenciales externas.
 | Modo | `hermes chat -q "<tarea>"` | `openclaw agent --local --message "<tarea>"` |
 | Modelo | `config.yaml` → `provider: custom`, `base_url: http://gateway:4000/v1` | `openclaw.json` → `models.providers.guardian` (`api: openai-completions`) |
 | Llave LLM | `run.sh` la escribe en `$HERMES_HOME/.env` desde `/run/guardian/secrets/llm_key` | `run.sh` la exporta como `OPENCLAW_LLM_KEY` (solo dentro del sandbox) |
-| Estado | `tmpfs: [/opt/data:512m]` (el wrapper de la imagen fuerza `HOME=/opt/data`) | `tmpfs: [/home/agent/.openclaw:256m]` + `OPENCLAW_STATE_DIR` |
+| Estado | `tmpfs: [/opt/data:512m, /run:16m]` (el wrapper fuerza `HOME=/opt/data`; el bootstrap escribe en `/run/s6`) | `tmpfs: [/home/agent/.openclaw:256m]` + `OPENCLAW_STATE_DIR` |
 | Tarea | `env.HERMES_TASK` | `env.OPENCLAW_TASK` |
 | Egreso | `allow: []` — todo intento se deniega y registra | `allow: []` + `OPENCLAW_OFFLINE=1`, `OPENCLAW_NO_AUTO_UPDATE=1` |
 
@@ -118,6 +118,10 @@ sudo make render-egress                          # tras añadir o cambiar manifi
 sudo ./bin/guardianctl agent run hermes-agent    # ~2 GB de imagen la primera vez
 sudo ./bin/guardianctl agent run openclaw
 ```
+
+Probados en caliente el 2026-09-16 (VM Debian 12 arm64, `qwen2.5:0.5b`): Hermes responde en
+~25 s y OpenClaw en ~17 s; ambos con `llm_request` auditada y sin egreso. Con un modelo de 0.5B
+las respuestas son pobres: es una prueba del sandbox, no del agente.
 
 Qué comprobar en el panel: en **Guardian · LLM** una `llm_request` del alias
 `hermes-agent-<ts>` / `openclaw-<ts>`; en **Guardian · Egreso**, cero `egress_allowed` y, si el

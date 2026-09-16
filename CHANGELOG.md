@@ -22,6 +22,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Vers
   escribibles y efímeros, `nosuid,nodev,noexec`) para agentes que exigen escribir en rutas fijas.
 
 ### Cambiado
+- `doctor`: comprobación de espacio en disco (aviso al 80 %, fallo al 90 %: Loki deja de ingerir
+  logs y la auditoría se detiene en silencio; visto en la prueba en caliente).
+- `make up`, `install.sh` y `upgrade` esperan a que los contenedores estén sanos (`--wait`); `make build`
+  no exige Go si ya hay `bin/guardianctl` (instalaciones desde tarball).
 - `compose/local.yml`: override del administrador (ignorado por git) que `make`, `install.sh` y
   `guardianctl` aplican como último `-f`; `upgrade` e `init` lo respetan.
 - `make restart` reiniciaba el servicio `litellm` (inexistente desde v0.3); ahora `gateway`.

@@ -1,5 +1,4 @@
 {
-  "$comment": "Plantilla para Guardian: run.sh sustituye __MODEL__ y la copia a OPENCLAW_STATE_DIR. Fuente: https://docs.openclaw.ai/concepts/model-providers/custom-providers",
   "gateway": { "mode": "local" },
   "agents": {
     "defaults": {

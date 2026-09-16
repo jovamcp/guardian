@@ -1,5 +1,7 @@
 #!/bin/sh
-# Lanzador de OpenClaw en el sandbox de Guardian: copia la plantilla de configuración al
+# Lanzador de OpenClaw en el sandbox de Guardian: copia la plantilla de configuración (openclaw.json,
+# esquema de https://docs.openclaw.ai/concepts/model-providers/custom-providers; sin claves extra:
+# OpenClaw rechaza claves desconocidas como "$comment") al
 # directorio de estado (tmpfs efímero), toma la llave LLM del archivo de secretos y ejecuta un
 # turno local del agente. Nada persiste al terminar el contenedor.
 set -eu
