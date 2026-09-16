@@ -35,6 +35,7 @@ resources: {cpus: "1", memory: 512m, pids: 128}
 schedule: {cron: ""}                  # reservado: la planificación llega en la Fase 3
 command: ["python3", "/app/main.py"]  # opcional
 mounts: ["./mi-agente:/app"]          # opcional; rutas relativas al manifiesto; siempre solo lectura
+tmpfs: ["/opt/data:512m"]             # opcional (v0.4): directorios escribibles y efímeros (nosuid,nodev,noexec) para agentes que exigen escribir en rutas fijas
 env: {LOG_LEVEL: info}                # opcional; solo valores NO secretos
 network: {ip: 172.28.30.120}          # opcional; si falta se deriva del nombre
 sandbox: {runtime: gvisor}            # opcional (v0.2): runc por defecto; gvisor requiere install.sh --with-gvisor
@@ -94,3 +95,36 @@ nueva política les aplica al instante.
 - **`schedule.cron`** se materializa con `guardianctl agent schedule apply` (timers de systemd).
 - El proxy no inspecciona el contenido TLS: controla **a dónde** habla el agente, no qué dice.
   La auditoría de contenido llega con Vector/Loki en la Fase 3.
+
+## Agentes reales: Hermes Agent y OpenClaw (v0.4)
+
+Los dos agentes del cliente objetivo de DESIGN.md §1 tienen manifiesto probado en
+`agents/examples/`. Ambos ejecutan **una tarea de un turno** contra el modelo local a través de
+gd-gateway, con llave efímera, sin salida a Internet y con todo su estado en tmpfs (desaparece
+al terminar). No hacen falta cuentas ni credenciales externas.
+
+| | Hermes Agent (Nous Research) | OpenClaw |
+|---|---|---|
+| Imagen | `docker.io/nousresearch/hermes-agent` v2026.9.14, por digest | `ghcr.io/openclaw/openclaw` 2026.9.4, por digest |
+| Modo | `hermes chat -q "<tarea>"` | `openclaw agent --local --message "<tarea>"` |
+| Modelo | `config.yaml` → `provider: custom`, `base_url: http://gateway:4000/v1` | `openclaw.json` → `models.providers.guardian` (`api: openai-completions`) |
+| Llave LLM | `run.sh` la escribe en `$HERMES_HOME/.env` desde `/run/guardian/secrets/llm_key` | `run.sh` la exporta como `OPENCLAW_LLM_KEY` (solo dentro del sandbox) |
+| Estado | `tmpfs: [/opt/data:512m]` (el wrapper de la imagen fuerza `HOME=/opt/data`) | `tmpfs: [/home/agent/.openclaw:256m]` + `OPENCLAW_STATE_DIR` |
+| Tarea | `env.HERMES_TASK` | `env.OPENCLAW_TASK` |
+| Egreso | `allow: []` — todo intento se deniega y registra | `allow: []` + `OPENCLAW_OFFLINE=1`, `OPENCLAW_NO_AUTO_UPDATE=1` |
+
+```bash
+sudo make render-egress                          # tras añadir o cambiar manifiestos
+sudo ./bin/guardianctl agent run hermes-agent    # ~2 GB de imagen la primera vez
+sudo ./bin/guardianctl agent run openclaw
+```
+
+Qué comprobar en el panel: en **Guardian · LLM** una `llm_request` del alias
+`hermes-agent-<ts>` / `openclaw-<ts>`; en **Guardian · Egreso**, cero `egress_allowed` y, si el
+agente intentó telemetría o actualizaciones, `egress_denied`/`dns_blocked` con su IP.
+
+Para usarlos con herramientas (búsqueda web, GitHub…), añade los dominios a `egress.allow`, los
+secretos al vault y las variables/archivos que cada agente espera; el sandbox no cambia.
+Un agente permanente (gateway de OpenClaw o de Hermes con canales de mensajería) queda fuera de
+`agent run`: no expone puertos y termina cuando termina el comando. Si lo necesitas, abre un
+issue: es el candidato a `mode: service` de una versión futura.

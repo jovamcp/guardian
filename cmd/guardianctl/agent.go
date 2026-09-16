@@ -185,6 +185,13 @@ func buildRunArgs(root string, m *Manifest, seccomp, secretsDir string) []string
 		"--read-only",
 		"--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=64m,uid=10000,gid=10000",
 		"--tmpfs", "/home/agent:rw,nosuid,nodev,noexec,size=64m,uid=10000,gid=10000,mode=0700",
+	}
+	// tmpfs adicionales del manifiesto (estado efímero de agentes que escriben en rutas fijas).
+	for _, t := range m.Tmpfs {
+		p, size, _ := parseTmpfs(t)
+		args = append(args, "--tmpfs", p+":rw,nosuid,nodev,noexec,size="+size+",uid=10000,gid=10000,mode=0700")
+	}
+	args = append(args, []string{
 		"--cap-drop", "ALL",
 		"--security-opt", "no-new-privileges",
 		"--security-opt", "seccomp=" + seccomp,
@@ -202,7 +209,7 @@ func buildRunArgs(root string, m *Manifest, seccomp, secretsDir string) []string
 		"-e", "http_proxy=http://" + agentsProxy + ":3128",
 		"-e", "NO_PROXY=gateway," + agentsLLM + ",localhost,127.0.0.1",
 		"-e", "no_proxy=gateway," + agentsLLM + ",localhost,127.0.0.1",
-	}
+	}...)
 	// El gateway se resuelve por /etc/hosts: bajo gVisor el DNS embebido de Docker (127.0.0.11)
 	// no es alcanzable desde la netstack del sandbox y "gateway" no resolvería. La IP es fija.
 	args = append(args, "--add-host", "gateway:"+agentsLLM)

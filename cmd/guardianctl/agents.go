@@ -42,6 +42,7 @@ type Manifest struct {
 	Cron     string
 	Command  []string
 	Mounts   []string // host:contenedor (siempre ro)
+	Tmpfs    []string // ruta[:tamaño] → tmpfs escribible y efímero (v0.4)
 	Env      map[string]string
 	IP       string
 	Path     string
@@ -78,6 +79,7 @@ func loadManifest(path string) (*Manifest, error) {
 	m.Cron = yamlmini.Str(yamlmini.Map(doc["schedule"])["cron"])
 	m.Command = yamlmini.Strs(doc["command"])
 	m.Mounts = yamlmini.Strs(doc["mounts"])
+	m.Tmpfs = yamlmini.Strs(doc["tmpfs"])
 	for k, v := range yamlmini.Map(doc["env"]) {
 		m.Env[k] = yamlmini.Str(v)
 	}
@@ -143,6 +145,11 @@ func (m *Manifest) validate() error {
 		}
 		if filepath.IsAbs(src) {
 			return fmt.Errorf("mounts: el origen debe ser relativo al manifiesto y quedar dentro de agents/ (%q)", src)
+		}
+	}
+	for _, t := range m.Tmpfs {
+		if _, _, err := parseTmpfs(t); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -343,4 +350,29 @@ func cmdPolicy(args []string) int {
 		fmt.Fprintln(os.Stderr, "policy render: objetivos: egress | nftables | fortios | opnsense | unifi [--out archivo]")
 		return 2
 	}
+}
+
+var tmpfsSizeRe = regexp.MustCompile(`^[1-9][0-9]{0,3}[mMgG]$`)
+
+// parseTmpfs valida una entrada `tmpfs:` del manifiesto ("/ruta" o "/ruta:256m") y devuelve
+// ruta y tamaño (por defecto 256m). Los tmpfs son escribibles pero nosuid,nodev,noexec y se
+// vacían al terminar: sirven de directorio de estado para agentes que exigen escribir en un
+// lugar fijo (p. ej. /opt/data de Hermes) sin abrir la raíz de solo lectura.
+func parseTmpfs(entry string) (path, size string, err error) {
+	path, size = entry, "256m"
+	if i := strings.LastIndex(entry, ":"); i >= 0 {
+		path, size = entry[:i], entry[i+1:]
+	}
+	if !filepath.IsAbs(path) || path == "/" || filepath.Clean(path) != path {
+		return "", "", fmt.Errorf("tmpfs: la ruta debe ser absoluta, limpia y distinta de / (%q)", entry)
+	}
+	for _, forbidden := range []string{"/run/guardian", "/proc", "/sys", "/dev", "/etc", "/bin", "/sbin", "/lib", "/lib64", "/usr"} {
+		if path == forbidden || strings.HasPrefix(path, forbidden+"/") {
+			return "", "", fmt.Errorf("tmpfs: ruta %q no permitida", path)
+		}
+	}
+	if !tmpfsSizeRe.MatchString(size) {
+		return "", "", fmt.Errorf("tmpfs: tamaño %q inválido (p. ej. 256m, 1g)", size)
+	}
+	return path, strings.ToLower(size), nil
 }

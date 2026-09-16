@@ -1,0 +1,7 @@
+# Configuración de Hermes Agent para Guardian (run.sh la copia a $HERMES_HOME y sustituye __MODEL__).
+# Fuente: https://hermes-agent.nousresearch.com/docs/user-guide/docker (proveedor custom).
+model:
+  provider: custom
+  model: __MODEL__
+  base_url: http://gateway:4000/v1      # gd-gateway dentro de gd_agents; sin barra final
+  api_key: ${OPENAI_API_KEY}            # run.sh la escribe en $HERMES_HOME/.env desde el secreto

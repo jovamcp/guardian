@@ -16,6 +16,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Vers
   Ollama (SHA-256) y fijación del digest del manifiesto en `guardian.yaml` (`models:`). `doctor`
   falla si un modelo fijado cambió o le faltan blobs y avisa de los no fijados; evento `model_check`
   a Vector, panel en "Guardian · Estado" y alerta ntfy. `docs/modelos.md`.
+- Manifiestos reales de **Hermes Agent** (`agents/examples/hermes-agent.yaml`) y **OpenClaw**
+  (`agents/examples/openclaw.yaml`): imagen por digest, tarea de un turno contra gd-gateway con
+  llave efímera, sin egreso, estado en tmpfs. Campo `tmpfs:` en el manifiesto (directorios
+  escribibles y efímeros, `nosuid,nodev,noexec`) para agentes que exigen escribir en rutas fijas.
 
 ### Cambiado
 - `make restart` reiniciaba el servicio `litellm` (inexistente desde v0.3); ahora `gateway`.

@@ -1,0 +1,41 @@
+# Hermes Agent (Nous Research) dentro del sandbox de Guardian: una tarea de un turno
+# (`hermes chat -q`) contra el modelo local a través de gd-gateway con llave efímera.
+#   sudo make render-egress && sudo guardianctl agent run hermes-agent
+#   HERMES_TASK="..." cambia la tarea (env del manifiesto). Guía: docs/agentes.md.
+name: hermes-agent
+
+# docker.io/nousresearch/hermes-agent:v2026.9.14 (índice multi-arch amd64/arm64, 2026-09-14).
+# Comprobado con `docker buildx imagetools inspect` o la API del registro. Regla dura 4.
+image: docker.io/nousresearch/hermes-agent@sha256:99641e57ec762c59e54cb44aa6746b7fc68c18b3c5ddb088af54234c613d9294
+
+llm:
+  models: [qwen2.5:0.5b]     # el primero llega como GUARDIAN_MODEL y run.sh lo pone en config.yaml
+  key: auto                  # llave virtual efímera (1 día, se revoca al terminar)
+
+egress:
+  # Hermes no necesita salir a Internet para chatear con el modelo local. Cualquier intento
+  # (telemetría, actualizaciones, herramientas web) queda denegado y registrado en Squid.
+  allow: []
+
+resources:
+  cpus: "2"
+  memory: 2g
+  pids: 256
+
+# El wrapper de la imagen fuerza HOME=/opt/data y escribe ahí config, .env y state.db.
+# La raíz es de solo lectura: /opt/data es un tmpfs efímero solo de este contenedor.
+tmpfs:
+  - /opt/data:512m
+
+env:
+  HERMES_TASK: "Responde en una frase y en español: ¿para qué sirve un firewall?"
+
+mounts:
+  - ./hermes-agent:/opt/guardian-agent      # config.yaml y run.sh, solo lectura
+
+# Se ejecuta bajo el entrypoint de la imagen (activa el venv y, como el uid 10000 ya es
+# `hermes`, no cambia de usuario).
+command: ["bash", "/opt/guardian-agent/run.sh"]
+
+schedule:
+  cron: ""

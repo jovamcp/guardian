@@ -1,0 +1,32 @@
+{
+  "$comment": "Plantilla para Guardian: run.sh sustituye __MODEL__ y la copia a OPENCLAW_STATE_DIR. Fuente: https://docs.openclaw.ai/concepts/model-providers/custom-providers",
+  "gateway": { "mode": "local" },
+  "agents": {
+    "defaults": {
+      "workspace": "/home/agent/workspace",
+      "model": { "primary": "guardian/__MODEL__" }
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "guardian": {
+        "baseUrl": "http://gateway:4000/v1",
+        "apiKey": "${OPENCLAW_LLM_KEY}",
+        "api": "openai-completions",
+        "timeoutSeconds": 300,
+        "models": [
+          {
+            "id": "__MODEL__",
+            "name": "Guardian (gd-gateway)",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 32768,
+            "maxTokens": 4096
+          }
+        ]
+      }
+    }
+  }
+}
