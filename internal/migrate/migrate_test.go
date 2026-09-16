@@ -32,7 +32,7 @@ func TestRunLiteLLMMigration(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "compose", "litellm"), 0o755)
 	os.WriteFile(filepath.Join(root, "compose", "litellm", "config.yaml"), []byte("model_list: []\n"), 0o644)
-	env := "DOMAIN=ai.home\n# LiteLLM\nLITELLM_MASTER_KEY=sk-1234567890abcdef1234\nLITELLM_SALT_KEY=sk-salt\nLITELLM_DB_PASSWORD=p\nGRAFANA_ADMIN_PASSWORD=g\n"
+	env := "DOMAIN=ai.home\n# LiteLLM\nLITELLM_MASTER_KEY=sk-master-0123456789abcdef\nLITELLM_SALT_KEY=sk-salt\nLITELLM_DB_PASSWORD=p\nGRAFANA_ADMIN_PASSWORD=g\n"
 	os.WriteFile(filepath.Join(root, "compose", ".env"), []byte(env), 0o600)
 
 	var log bytes.Buffer
@@ -44,7 +44,7 @@ func TestRunLiteLLMMigration(t *testing.T) {
 		t.Errorf("aplicadas: %v", applied)
 	}
 	got, _ := os.ReadFile(filepath.Join(root, "compose", ".env"))
-	want := "DOMAIN=ai.home\n# LiteLLM\nGRAFANA_ADMIN_PASSWORD=g\nGATEWAY_MASTER_KEY=sk-1234567890abcdef1234\n"
+	want := "DOMAIN=ai.home\n# LiteLLM\nGRAFANA_ADMIN_PASSWORD=g\nGATEWAY_MASTER_KEY=sk-master-0123456789abcdef\n"
 	if string(got) != want {
 		t.Errorf(".env = %q\nquería %q", got, want)
 	}
@@ -67,7 +67,7 @@ func TestRunLiteLLMMigration(t *testing.T) {
 		t.Errorf("segunda pasada alteró .env: %q", got2)
 	}
 	// Con GATEWAY_MASTER_KEY ya presente no se pisa.
-	os.WriteFile(filepath.Join(root, "compose", ".env"), []byte("GATEWAY_MASTER_KEY=sk-existing-existing-1\nLITELLM_MASTER_KEY=sk-1234567890abcdef1234\n"), 0o600)
+	os.WriteFile(filepath.Join(root, "compose", ".env"), []byte("GATEWAY_MASTER_KEY=sk-existing-existing-1\nLITELLM_MASTER_KEY=sk-master-0123456789abcdef\n"), 0o600)
 	if _, err := Run(root, "0.2.0", "0.3.0", &log); err != nil {
 		t.Fatal(err)
 	}

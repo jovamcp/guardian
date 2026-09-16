@@ -496,7 +496,7 @@ func TestRunMigrationsFromPreviousAndDoctorCheck(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "compose", "litellm"), 0o755)
-	os.WriteFile(filepath.Join(root, "compose", ".env"), []byte("LITELLM_MASTER_KEY=sk-1234567890abcdef1234\n"), 0o600)
+	os.WriteFile(filepath.Join(root, "compose", ".env"), []byte("LITELLM_MASTER_KEY=sk-master-0123456789abcdef\n"), 0o600)
 	os.WriteFile(filepath.Join(root, "VERSION"), []byte("0.4.0\n"), 0o644)
 	os.MkdirAll(filepath.Join(root, previousDir), 0o755)
 	os.WriteFile(filepath.Join(root, previousDir, "META"), []byte("version=0.2.0\n"), 0o600)
@@ -507,7 +507,7 @@ func TestRunMigrationsFromPreviousAndDoctorCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	env := readFile(t, filepath.Join(root, "compose", ".env"))
-	if env != "GATEWAY_MASTER_KEY=sk-1234567890abcdef1234\n" {
+	if env != "GATEWAY_MASTER_KEY=sk-master-0123456789abcdef\n" {
 		t.Errorf(".env tras migrar: %q", env)
 	}
 	if readFile(t, filepath.Join(root, "compose", ".migrated")) != "0.4.0\n" {
