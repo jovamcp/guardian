@@ -111,7 +111,7 @@ al terminar). No hacen falta cuentas ni credenciales externas.
 | Llave LLM | `run.sh` la escribe en `$HERMES_HOME/.env` desde `/run/guardian/secrets/llm_key` | `run.sh` la exporta como `OPENCLAW_LLM_KEY` (solo dentro del sandbox) |
 | Estado | `tmpfs: [/opt/data:512m, /run:16m]` (el wrapper fuerza `HOME=/opt/data`; el bootstrap escribe en `/run/s6`) | `tmpfs: [/home/agent/.openclaw:256m]` + `OPENCLAW_STATE_DIR` |
 | Tarea | `env.HERMES_TASK` | `env.OPENCLAW_TASK` |
-| Egreso | `allow: []` — todo intento se deniega y registra | `allow: []` + `OPENCLAW_OFFLINE=1`, `OPENCLAW_NO_AUTO_UPDATE=1` |
+| Egreso | `allow: []` — en la prueba, su arranque intentó `github.com` y `pypi.org` (skills, instalaciones perezosas): 5 `egress_denied` registrados, el agente siguió funcionando | `allow: []` + `OPENCLAW_OFFLINE=1`, `OPENCLAW_NO_AUTO_UPDATE=1`; no intentó salir |
 
 ```bash
 sudo make render-egress                          # tras añadir o cambiar manifiestos
