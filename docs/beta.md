@@ -1,4 +1,4 @@
-# Programa beta de Guardian v0.1
+# Programa beta de Guardian (v0.4)
 
 Buscamos **cinco personas** con un homelab que ya ejecute Ollama y quieran probar Guardian
 durante dos semanas. El objetivo de la beta es medir una sola cosa: **¿se instala en menos de
@@ -25,7 +25,7 @@ interesa, pero eso es lo primero.
    tar -xzf guardian-<versión>.tar.gz && cd guardian-<versión>
    ```
 
-   Desde v0.2 los releases van firmados con **cosign** (keyless, identidad del workflow de GitHub).
+   Los releases van firmados con **cosign** (keyless, identidad del workflow de GitHub).
    Si tienes cosign, comprueba también la firma de `SHA256SUMS`:
 
    ```bash
@@ -63,6 +63,9 @@ Marca lo que consigas y anota el tiempo:
 - [ ] WireGuard desde datos móviles: el chat carga.
 - [ ] Política del firewall aplicada (`policy render fortios|opnsense`) y AI→LAN bloqueado.
 - [ ] `hello-agent` ejecutado (`docs/agentes.md`) y su alerta llegó a ntfy (`docs/auditoria.md`).
+- [ ] `sudo ./bin/guardianctl model pin --all` y `doctor` sigue en verde (`docs/modelos.md`).
+- [ ] Un agente real (`agent run hermes-agent` u `openclaw`) responde y no sale a Internet.
+- [ ] Cuando salga la siguiente versión: `sudo ./bin/guardianctl upgrade` termina con `doctor` en verde (____ min) y `--rollback` funciona (`docs/actualizacion.md`).
 
 ## Qué reportar
 
@@ -76,8 +79,15 @@ Abre un issue por cada problema con la plantilla **Beta**. Incluye siempre:
 **No pegues nunca** `compose/.env`, `vault/`, llaves `sk-…` ni secretos de clientes OIDC.
 `root.crt` sí se puede compartir (es solo la parte pública).
 
-## Qué NO está en v0.1
+## Resultados en hardware real
 
-Multi-nodo, cloud burst, dashboard propio, gVisor, firma de releases con cosign, plantilla
-UniFi, copias con restic, dominio público con DNS challenge. Si lo necesitas, dilo en un issue
-con la etiqueta `v0.2`.
+| Fecha | Máquina | SO | Versión | Instalación | `doctor` | Notas |
+|---|---|---|---|---|---|---|
+| 2026-09 | Apple Silicon (VMs Lima Debian 12 / Ubuntu 24.04, arm64) | Debian 12, Ubuntu 24.04 | v0.1–v0.3 | < 15 min | verde | Entorno de desarrollo; ver trampas en `CLAUDE.md` |
+| pendiente | x86-64 (EC2 o mini-PC) | Debian 12 | v0.4.0-rc | — | — | Primera prueba fuera de Apple Silicon (tarea 6 de `docs/prompts/07-v0.4.md`) |
+
+## Qué NO está todavía
+
+Agentes permanentes (`mode: service`: gateway de OpenClaw o Hermes con canales de mensajería),
+autenticación de proxy por agente, firma de eventos de auditoría, dashboard propio, Tailscale como
+alternativa a wg-easy, Podman rootless. Si lo necesitas, dilo en un issue con la etiqueta `v0.5`.

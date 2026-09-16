@@ -17,16 +17,18 @@ No sustituye el runtime ni el chat: los protege. Diseño completo en [`DESIGN.md
 
 ## Estado
 
-**v0.3.0 publicado** (gateway propio en Go que sustituye a LiteLLM y Postgres, multi-nodo,
-cloud burst controlado), probado en VMs de Debian 12 y Ubuntu 24.04. Buscamos
+**v0.3.0 publicado; v0.4 en `main`** (`guardianctl upgrade` con releases firmados, migraciones y
+rollback; verificación y fijación de modelos de Ollama; manifiestos reales de Hermes Agent y
+OpenClaw), probado en VMs de Debian 12 y Ubuntu 24.04. Buscamos
 [beta testers](docs/beta.md) con hardware real. Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
 Ollama aislado, wg-easy 15, nftables con persistencia, gd-gateway con llaves virtuales en
 `api.<DOMAIN>`, red interna de agentes con Squid + Blocky por allowlist, sandbox
 (seccomp/AppArmor/uid 10000/solo lectura), vault con `age`, auditoría en `logs.<DOMAIN>` (Loki + Grafana con OIDC, alertas ntfy) y
-`guardianctl` (`init status doctor key policy agent secret`), `guardian.yaml`, políticas para
+`guardianctl` (`init status doctor key policy agent secret backup upgrade migrate model`), `guardian.yaml`, políticas para
 FortiOS, OPNsense y UniFi, copias con restic, gVisor opcional, imágenes por digest y releases firmados con cosign. Pendiente de prueba en hardware real
 x86-64 y desde un móvil fuera de casa. Guías: [`docs/gateway.md`](docs/gateway.md), [`docs/agentes.md`](docs/agentes.md),
-[`docs/auditoria.md`](docs/auditoria.md), [`docs/proxmox-lxc.md`](docs/proxmox-lxc.md).
+[`docs/auditoria.md`](docs/auditoria.md), [`docs/actualizacion.md`](docs/actualizacion.md), [`docs/modelos.md`](docs/modelos.md),
+[`docs/proxmox-lxc.md`](docs/proxmox-lxc.md).
 Revisión de seguridad y riesgos aceptados: [`docs/seguridad.md`](docs/seguridad.md).
 
 ## Instalación rápida

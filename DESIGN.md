@@ -70,7 +70,7 @@ quiere ejecutar agentes (OpenClaw, Hermes Agent, n8n) sin exponer su red ni sus 
 | Ollama | Runtime de modelos | 1 |
 | wg-easy (o Tailscale) | Acceso remoto WireGuard con panel y QR | 1 |
 | nftables | Firewall del host + DOCKER-USER | 1 |
-| guardianctl | `init`, `agent`, `key`, `secret`, `policy render`, `status`, `doctor` | 1–4 |
+| guardianctl | `init`, `agent`, `key`, `secret`, `policy render`, `status`, `doctor`, `backup` (v0.2), `upgrade`, `migrate`, `model` (v0.4) | 1–4, v0.2, v0.4 |
 | gd-gateway (propio, Go) | API compatible OpenAI, llaves virtuales, límites, presupuesto, multi-nodo, cloud burst | 2 (LiteLLM) → v0.3 |
 | Squid + Blocky | Egreso HTTPS con allowlist por agente, DNS filtrado | 2 |
 | Docker + seccomp/AppArmor | Sandbox de agentes | 2 |

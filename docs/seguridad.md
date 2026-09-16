@@ -4,7 +4,9 @@ Revisión completa realizada el 2026-09-12 sobre v0.3 (`main`), con análisis es
 staticcheck, shellcheck, hadolint, trivy config, gitleaks sobre todo el historial) y revisión
 manual del código de `guardianctl`, `gd-gateway`, `install.sh`, el compose, nftables, Squid,
 Blocky, Vector y las plantillas. Este documento recoge qué se encontró, qué se corrigió y qué
-riesgos quedan aceptados y por qué. Se actualiza en cada release.
+riesgos quedan aceptados y por qué. Se actualiza en cada release. **Actualizada el 2026-09-16
+para v0.4** (`upgrade`, migraciones, modelos, agentes reales): sección "Novedades de v0.4" y filas
+nuevas en riesgos aceptados.
 
 ## Modelo de confianza (resumen)
 
@@ -56,6 +58,31 @@ riesgos quedan aceptados y por qué. Se actualiza en cada release.
 - **Historial de git**: gitleaks sobre los 43 commits no encuentra secretos (solo los dos
   valores de prueba documentados).
 
+## Novedades de v0.4, revisadas
+
+- **`guardianctl upgrade`**: nada descargado se ejecuta ni se extrae sobre el repo antes de
+  verificarlo (SHA-256 en Go contra `SHA256SUMS`; firma keyless de cosign con la misma identidad
+  que `install.sh`). La extracción rechaza rutas absolutas, `..`, enlaces que salgan del árbol,
+  dispositivos y entradas de más de 64 MB; `VERSION` del tarball debe coincidir con el tag. No
+  toca `guardian.yaml`, `compose/.env`, `vault/`, certificados ni manifiestos propios; los
+  archivos que el administrador edita (`compose/gateway/config.yaml`, `nftables/*.nft`) nunca se
+  sobrescriben (quedan como `.new`). Copia previa con restic y `.previous/` para deshacer.
+  Requiere root (salvo `--check`/`--dry-run`) y `.upgrade/`/`.previous/` son 0700.
+- **Migraciones** (`internal/migrate`): idempotentes, registradas en `compose/.migrated`; la
+  0.3.0 reescribe `compose/.env` con modo 0600 y nunca borra volúmenes (los lista).
+- **Modelos** (`guardianctl model`): lectura de solo lectura del volumen `ollama_data` desde el
+  host; el digest fijado es el SHA-256 del manifiesto (lo mismo que muestra `ollama list`);
+  `doctor` no lee GB cada 15 minutos (solo manifiestos y tamaños), `model verify` sí. Los
+  eventos `model_check` entran a Vector por un `http_server` nuevo (8689) en `gd_audit`, con la
+  misma confianza que el informe del doctor (ver riesgo aceptado de Vector).
+- **`tmpfs:` en manifiestos**: directorios escribibles adicionales para el agente, siempre
+  `nosuid,nodev,noexec`, uid 10000, modo 0700, tamaño acotado; rutas del sistema prohibidas
+  (`/etc`, `/usr`, `/run/guardian`, …). No amplían lo que el agente puede tocar fuera de sí mismo.
+- **Hermes Agent y OpenClaw**: imágenes fijadas por digest de índice multi-arch (verificadas
+  contra Docker Hub y ghcr.io), sin egreso, llave LLM efímera. Los `run.sh` leen la llave del
+  archivo de secretos dentro del sandbox; OpenClaw la recibe en una variable de entorno de su
+  propio proceso (ver riesgo aceptado).
+
 ## Riesgos aceptados (y cómo mitigarlos si te preocupan)
 
 | Riesgo | Por qué se acepta | Mitigación opcional |
@@ -67,6 +94,9 @@ riesgos quedan aceptados y por qué. Se actualiza en cada release.
 | `/admin` del gateway es alcanzable desde LAN y VPN (con master key). | Es lo que usa `guardianctl` a través de Caddy; hay límite de intentos y comparación constante. | Restringir `api.<DOMAIN>/admin/*` en Caddy a la IP del host. |
 | `guardianctl` corre como root y lee su propio repo (gosec G304/G703 "path traversal"). | Las rutas salen de la configuración del administrador, no de entradas remotas; las que vienen de manifiestos ya están confinadas (hallazgo 2). | — |
 | Pocket ID 2.14 se reinicia solo en VMs con saltos de reloj. | No es de seguridad; sesiones intactas. | Sincronización horaria del host. |
+| `upgrade` sin cosign instalado solo verifica SHA-256 (igual que `install.sh`). | El SHA-256 viene del mismo release que el tarball: protege de corrupción, no de un GitHub comprometido. | `apt install cosign` y `upgrade --require-signature`. |
+| `run.sh` de OpenClaw exporta la llave LLM como variable de entorno del proceso del agente. | Es efímera (1 día, revocada al salir), solo existe dentro del sandbox y no aparece en `docker inspect` (no la pasa guardianctl). OpenClaw no admite leerla de archivo en la versión fijada. | Usar `"$file:"` en `openclaw.json` cuando la versión fijada lo soporte. |
+| Los agentes reales leen su configuración de un bind mount de `agents/examples/` de solo lectura. | Mismo mecanismo que `hello-agent`; el contenido lo controla el administrador. | — |
 
 ## Cómo repetir la revisión
 
@@ -78,11 +108,14 @@ docker run --rm -v "$PWD:/mnt:ro" koalaman/shellcheck:stable -S style install.sh
 docker run --rm -i hadolint/hadolint < compose/gateway/Dockerfile
 docker run --rm -v "$PWD:/repo:ro" aquasec/trivy:latest config /repo
 docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:latest detect --source /repo
-sudo make doctor                        # 17 comprobaciones en el host
+sudo make doctor                        # 19 comprobaciones en el host
 ```
 
 Y las pruebas de la VM que acompañan a cada commit: manifiestos con `mounts` maliciosos,
 `docker.sock`, digests falsos, fuerza bruta contra `api.<DOMAIN>`, nodos caídos, presupuestos.
+En v0.4, además: `go test ./...` cubre tarballs maliciosos de `upgrade` (traversal, enlaces
+absolutos, dispositivos, suma o firma incorrectas), migraciones sobre un `.env` de v0.2 y blobs
+de modelos alterados, truncados o ausentes.
 
 ## Informar de una vulnerabilidad
 

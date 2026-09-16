@@ -254,7 +254,7 @@ En el host:
 sudo make doctor
 ```
 
-Debe mostrar `[ OK ]` en las 13 comprobaciones: Docker, los 13 servicios, ningún socket del host
+Debe mostrar `[ OK ]` en las 19 comprobaciones: Docker, los 12 servicios, ningún socket del host
 en 11434, solo 443/tcp y 51820/udp publicados, la CA exportada, Ollama accesible desde el
 contenedor de Open WebUI, el certificado de 443 emitido por la CA interna, la red de agentes
 interna, una sonda en esa red sin salida a Internet, ningún agente con el socket de Docker, el

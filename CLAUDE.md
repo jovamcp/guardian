@@ -73,7 +73,7 @@ estado, Proxmox LXC). Antes de cada release: `make pin-images && make release`; 
 ## Cómo probar
 ```bash
 make up            # levanta la plataforma
-make doctor        # 13 comprobaciones (root); sondas en gd_agents y gd_audit
+make doctor        # 19 comprobaciones (root); sondas en gd_agents y gd_audit
 sudo ./bin/guardianctl agent run hello-agent   # prueba de humo del sandbox (ver docs/agentes.md)
 make logs          # logs en vivo
 make nft-check     # valida nftables sin aplicar
