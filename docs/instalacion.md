@@ -330,14 +330,12 @@ sudo make up        # arrancar
 sudo make doctor    # comprobaciones
 ```
 
-Actualizar a un release nuevo (v0.4 traerá `guardianctl upgrade` con verificación de firma,
-copia previa, migraciones y rollback; hasta entonces, a mano):
+Actualizar a un release nuevo (verifica firma y suma, copia previa, migraciones y rollback;
+detalles en [`docs/actualizacion.md`](actualizacion.md)):
 
 ```bash
-# descarga y verifica el tarball nuevo como en la instalación; luego, desde el repo instalado:
-sudo make down && sudo tar -xzf guardian-<versión>.tar.gz --strip-components=1 -C /opt/guardian
-sudo ./install.sh   # reutiliza guardian.yaml y compose/.env; reconstruye la imagen del gateway
-sudo make doctor
+sudo ./bin/guardianctl upgrade --check   # ¿hay versión nueva?
+sudo ./bin/guardianctl upgrade           # actualiza; --rollback para volver atrás
 ```
 
 ### Copias de seguridad (restic)

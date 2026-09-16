@@ -16,3 +16,7 @@ dist/
 
 # activación de overrides de compose (lo escribe guardianctl init)
 compose/.extra-files
+
+# guardianctl upgrade: versión anterior y descargas en curso
+.previous/
+.upgrade/

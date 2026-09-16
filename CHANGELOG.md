@@ -2,6 +2,18 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Versionado semántico.
 
+## [0.4.0] — sin publicar
+
+### Añadido
+- `guardianctl upgrade [--check | --dry-run] [--to vX.Y.Z] [--rollback]`: actualización a un release
+  firmado (SHA-256 en Go, cosign si está), copia previa con restic, árbol anterior en `.previous/`,
+  archivos del usuario y protegidos (`compose/gateway/config.yaml`, `nftables/*.nft` → `.new`)
+  intactos, `.env` sincronizado con `.env.example`, `compose up` y `doctor`. `docs/actualizacion.md`.
+
+### Cambiado
+- `make restart` reiniciaba el servicio `litellm` (inexistente desde v0.3); ahora `gateway`.
+- Sin restos de LiteLLM en código, compose, Vector ni CI (los paneles siguen leyendo logs antiguos).
+
 ## [0.3.0] — 2026-09-16
 
 ### Añadido

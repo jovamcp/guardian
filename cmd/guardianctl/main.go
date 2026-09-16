@@ -60,6 +60,8 @@ func main() {
 		os.Exit(cmdAgent(os.Args[2:]))
 	case "secret":
 		os.Exit(cmdSecret(os.Args[2:]))
+	case "upgrade":
+		os.Exit(cmdUpgrade(os.Args[2:]))
 	case "backup":
 		os.Exit(cmdBackup(os.Args[2:]))
 	case "-h", "--help", "help":
@@ -93,7 +95,9 @@ func usage() {
   secret    vault cifrado con age: secret init | set <ref> | get <ref> | list | rm <ref>
             (los manifiestos referencian secretos como vault:<ref>)
   backup    copias con restic (backup: en guardian.yaml): backup init | run | list |
-            restore [snapshot] --to <dir> | schedule apply|remove`)
+            restore [snapshot] --to <dir> | schedule apply|remove
+  upgrade   actualiza a un release firmado: upgrade [--check | --dry-run] [--to vX.Y.Z] [--yes]
+            [--no-backup] [--require-signature] | upgrade --rollback   (docs/actualizacion.md)`)
 }
 
 // repoRoot localiza la raíz del repo: directorio actual o el del binario (bin/..).
