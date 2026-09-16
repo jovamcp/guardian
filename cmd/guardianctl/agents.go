@@ -19,7 +19,7 @@ const (
 	agentsSubnet = "172.28.30.0/24"
 	agentsDNS    = "172.28.30.53" // blocky
 	agentsProxy  = "172.28.30.3"  // squid
-	agentsLLM    = "172.28.30.10" // litellm
+	agentsLLM    = "172.28.30.10" // gateway
 	agentIPFirst = 100            // primer host asignable a agentes
 	agentIPLast  = 250
 )

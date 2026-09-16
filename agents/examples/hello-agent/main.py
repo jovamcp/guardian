@@ -16,7 +16,7 @@ def main() -> int:
     model = os.environ.get("GUARDIAN_MODEL", "qwen2.5:0.5b")
     key = read_secret("llm_key")
 
-    # 1) LLM a través del gateway, sin proxy (NO_PROXY incluye litellm).
+    # 1) LLM a través del gateway, sin proxy (NO_PROXY incluye gateway).
     req = urllib.request.Request(
         f"{base}/chat/completions",
         data=json.dumps({"model": model, "max_tokens": 12,

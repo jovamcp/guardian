@@ -1,4 +1,4 @@
-// Eventos de auditoría hacia Vector (mismo esquema que emitía LiteLLM: lista de objetos JSON).
+// Eventos de auditoría hacia Vector (lista de objetos JSON; mismo esquema llm_request desde v0.1).
 package main
 
 import (

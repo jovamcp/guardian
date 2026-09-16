@@ -1,6 +1,6 @@
 # Agente de ejemplo REAL de la Fase 2: comprueba el sandbox de extremo a extremo.
 #   sudo guardianctl agent run hello-agent
-# 1) pide una respuesta al LLM a través del gateway (http://litellm:4000) con su llave virtual;
+# 1) pide una respuesta al LLM a través del gateway (http://gateway:4000/v1) con su llave virtual;
 # 2) descarga https://api.github.com/zen a través del proxy (dominio permitido);
 # 3) comprueba que un dominio NO permitido falla.
 name: hello-agent

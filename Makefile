@@ -14,7 +14,7 @@ down:
 ## restart: recrea open-webui para que relea el .env (OAUTH_*), reinicia el resto y recarga Caddy.
 restart:
 	$(COMPOSE) up -d --force-recreate open-webui
-	$(COMPOSE) restart pocket-id wg-easy ollama litellm
+	$(COMPOSE) restart pocket-id wg-easy ollama gateway
 	$(COMPOSE) exec -T caddy caddy reload --config /etc/caddy/Caddyfile
 
 ## render-egress: regenera las allowlists de Squid y Blocky desde agents/*.yaml y las aplica.

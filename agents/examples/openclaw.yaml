@@ -1,12 +1,12 @@
 # Manifiesto de ejemplo de un agente Guardian (DESIGN.md, sección 5).
-# NO SE EJECUTA en la Fase 1: la red gd_agents, LiteLLM y el sandbox llegan en la Fase 2.
+# Marcador de posición: el manifiesto real y probado llega en v0.4 (docs/prompts/07-v0.4.md).
 name: openclaw
 
 # Imagen fijada por digest (regla dura 4). Este digest es un marcador de posición.
 image: ghcr.io/openclaw/openclaw@sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 llm:
-  # Modelos que el agente puede pedir al gateway (LiteLLM). Cualquier otro se rechaza.
+  # Modelos que el agente puede pedir a gd-gateway. Cualquier otro se rechaza.
   models: [llama3.1:8b, qwen2.5-coder:7b]
   # `auto`: guardianctl crea una llave virtual por agente con estos modelos y cuota.
   key: auto

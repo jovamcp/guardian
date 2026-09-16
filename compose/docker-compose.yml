@@ -59,7 +59,7 @@ networks:
       config:
         - subnet: 172.28.20.0/24
   # Agentes (Fase 2): red INTERNA, sin ruta por defecto ni NAT. Un agente solo ve lo que
-  # está conectado aquí: el gateway LiteLLM, el DNS (Blocky) y el proxy (Squid).
+  # está conectado aquí: gd-gateway, el DNS (Blocky) y el proxy (Squid).
   gd_agents:
     name: gd_agents
     internal: true

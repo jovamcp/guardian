@@ -1,5 +1,5 @@
 # Vector: recoge los logs de los contenedores (vía docker-socket-proxy), los descartes de nftables
-# (journald del kernel) y los eventos por petición de LiteLLM, los normaliza y los envía a Loki.
+# (journald del kernel) y los eventos por petición de gd-gateway, los normaliza y los envía a Loki.
 # Fuentes: docs en la cabecera de compose/docker-compose.yml.
 data_dir: /var/lib/vector
 
@@ -20,7 +20,7 @@ sources:
       _TRANSPORT: ["kernel"]
 
   # gd-gateway envía un POST JSON (lista de eventos) por petición a /llm (audit_url).
-  litellm_events:
+  llm_events:
     type: http_server
     address: 0.0.0.0:8687
     path: /llm
@@ -119,9 +119,9 @@ transforms:
       only = ["timestamp", "message", "service", "event", "client_ip", "destination", "proto", "dport", "host"]
       . = filter(.) -> |k, _| { includes(only, k) }
 
-  litellm_norm:
+  llm_norm:
     type: remap
-    inputs: [litellm_events]
+    inputs: [llm_events]
     source: |
       .service = "gateway"
       .event = if exists(.event) && .event == "budget" { "budget" } else { "llm_request" }
@@ -132,7 +132,7 @@ transforms:
       .status = if exists(.status) { .status } else { "success" }
       .error = .error_str
       # Privacidad: no guardamos prompts ni respuestas, solo metadatos
-      # (LiteLLM ya los redacta con turn_off_message_logging; por si acaso).
+      # (el gateway nunca los envía; este filtro es la segunda barrera).
       only = ["timestamp", "service", "event", "key_alias", "agent", "client_ip", "model", "call_type",
               "status", "error", "spend", "prompt_tokens", "completion_tokens", "total_tokens",
               "startTime", "endTime", "id", "cache_hit", "upstream", "cloud", "http_status", "latency_ms"]
@@ -141,7 +141,7 @@ transforms:
 sinks:
   loki:
     type: loki
-    inputs: [containers_norm, kernel_norm, litellm_norm, doctor_norm]
+    inputs: [containers_norm, kernel_norm, llm_norm, doctor_norm]
     endpoint: http://loki:3100
     encoding:
       codec: json

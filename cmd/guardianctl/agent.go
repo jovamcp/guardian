@@ -200,12 +200,12 @@ func buildRunArgs(root string, m *Manifest, seccomp, secretsDir string) []string
 		"-e", "HTTP_PROXY=http://" + agentsProxy + ":3128",
 		"-e", "https_proxy=http://" + agentsProxy + ":3128",
 		"-e", "http_proxy=http://" + agentsProxy + ":3128",
-		"-e", "NO_PROXY=gateway,litellm," + agentsLLM + ",localhost,127.0.0.1",
-		"-e", "no_proxy=gateway,litellm," + agentsLLM + ",localhost,127.0.0.1",
+		"-e", "NO_PROXY=gateway," + agentsLLM + ",localhost,127.0.0.1",
+		"-e", "no_proxy=gateway," + agentsLLM + ",localhost,127.0.0.1",
 	}
 	// El gateway se resuelve por /etc/hosts: bajo gVisor el DNS embebido de Docker (127.0.0.11)
-	// no es alcanzable desde la netstack del sandbox y "litellm" no resolvería. La IP es fija.
-	args = append(args, "--add-host", "gateway:"+agentsLLM, "--add-host", "litellm:"+agentsLLM)
+	// no es alcanzable desde la netstack del sandbox y "gateway" no resolvería. La IP es fija.
+	args = append(args, "--add-host", "gateway:"+agentsLLM)
 	if m.Runtime == "gvisor" {
 		// gVisor intercepta las syscalls con su propio kernel en espacio de usuario; el perfil
 		// seccomp y AppArmor del host se siguen pasando (runsc los acepta o los ignora sin fallar).
