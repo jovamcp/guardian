@@ -17,6 +17,9 @@ dist/
 # activación de overrides de compose (lo escribe guardianctl init)
 compose/.extra-files
 
+# override del administrador (p. ej. GPU, OPENSSL_armcap en VMs Apple Silicon); ver docs/instalacion.md
+compose/local.yml
+
 # guardianctl upgrade: versión anterior y descargas en curso
 .previous/
 .upgrade/

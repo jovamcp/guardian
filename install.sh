@@ -19,6 +19,9 @@ load_extra_compose() {
 			[[ -n "${f}" ]] && COMPOSE+=(-f "${REPO_DIR}/${f}")
 		done < <(awk '{for(i=1;i<=NF;i++) if($i!="-f") print $i}' "${COMPOSE_DIR}/.extra-files")
 	fi
+	# Override del administrador (ignorado por git; guardianctl upgrade e init no lo tocan).
+	[[ -f "${COMPOSE_DIR}/local.yml" ]] && COMPOSE+=(-f "${COMPOSE_DIR}/local.yml")
+	return 0
 }
 WITH_NFTABLES=0
 WITH_GVISOR=0

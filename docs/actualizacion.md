@@ -26,7 +26,7 @@ sudo ./bin/guardianctl upgrade --rollback  # vuelve a la versión anterior
    copia falla, se detiene (`--no-backup` la omite a propósito).
 5. Guarda en `.previous/` los archivos que va a sustituir, `bin/` y `VERSION`.
 6. Copia los archivos nuevos sobre el repo **sin tocar** `guardian.yaml`, `compose/.env`,
-   `vault/`, `compose/certs/`, `compose/.extra-files`, `.git` ni tus manifiestos en `agents/`.
+   `vault/`, `compose/certs/`, `compose/.extra-files`, `compose/local.yml`, `.git` ni tus manifiestos en `agents/`.
    Los archivos que sueles editar (`compose/gateway/config.yaml`, `nftables/*.nft`) no se
    sobrescriben: si difieren, la versión nueva queda al lado como `<archivo>.new` y se avisa
    para que la fusiones.
@@ -34,8 +34,10 @@ sudo ./bin/guardianctl upgrade --rollback  # vuelve a la versión anterior
    añade a `compose/.env` las variables nuevas de `.env.example` generando los secretos que
    falten, ejecuta las migraciones pendientes y `init --yes` (sincroniza `.env` y los `define`
    de nftables con `guardian.yaml`).
-8. `docker compose pull` + `up -d --build --remove-orphans`, recarga de Caddy y `doctor` con el
-   binario nuevo.
+8. `docker compose pull` + `up -d --build --remove-orphans`, recarga de Caddy, reinicio de los
+   servicios cuya configuración montada cambió (Vector, Grafana, Blocky, Squid, gateway) y
+   `doctor` con el binario nuevo. Si el doctor falla, `upgrade` termina con error explicándolo:
+   la actualización está aplicada; revisa los fallos o vuelve con `--rollback`.
 
 Nunca borra volúmenes: los que queden huérfanos (por ejemplo `guardian_litellm_db_data` al venir
 de v0.2) se listan y los borras tú cuando quieras.

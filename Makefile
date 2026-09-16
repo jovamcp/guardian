@@ -1,7 +1,8 @@
 # Docker es rootful (ver CLAUDE.md): si no somos root, anteponemos sudo.
 SUDO    := $(if $(filter 0,$(shell id -u)),,sudo)
-# compose/.extra-files lo escribe guardianctl init (p. ej. "-f compose/tls-acme-dns.yml").
-COMPOSE := $(SUDO) docker compose --env-file compose/.env -f compose/docker-compose.yml $(shell cat compose/.extra-files 2>/dev/null)
+# compose/.extra-files lo escribe guardianctl init (p. ej. "-f compose/tls-acme-dns.yml");
+# compose/local.yml es el override del administrador (ignorado por git, sobrevive a upgrade e init).
+COMPOSE := $(SUDO) docker compose --env-file compose/.env -f compose/docker-compose.yml $(shell cat compose/.extra-files 2>/dev/null) $(if $(wildcard compose/local.yml),-f compose/local.yml,)
 
 .PHONY: up down restart reload-caddy render-egress restart-egress release pin-images pin-check ps logs build doctor status nft-check nft-apply
 

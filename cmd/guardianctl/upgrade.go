@@ -56,7 +56,7 @@ var protectedFiles = []string{
 }
 
 // Lo que nunca sale del árbol actual (datos del usuario) ni entra en .previous/.
-var userData = []string{"guardian.yaml", "vault", "compose/.env", "compose/certs", "compose/.extra-files", ".git", previousDir, stagingDir, "dist"}
+var userData = []string{"guardian.yaml", "vault", "compose/.env", "compose/certs", "compose/.extra-files", "compose/local.yml", "compose/.migrated", ".git", previousDir, stagingDir, "dist"}
 
 type release struct {
 	Tag    string `json:"tag_name"`
@@ -79,8 +79,8 @@ func (r release) asset(name string) (string, bool) {
 // upgradeHooks permite a los tests sustituir las acciones que tocan Docker o el host.
 type upgradeHooks struct {
 	backup  func(root string) error
-	install func(root, newVersion string) error // binario, .env, migraciones
-	stack   func(root string) error             // compose pull/up + caddy reload
+	install func(root, newVersion string) error       // binario, .env, migraciones
+	stack   func(root string, changed []string) error // compose pull/up, reinicio de servicios con config cambiada
 	doctor  func(root string) int
 	cosign  func(dir string) error // verificación de firma (nil = usar cosign real)
 }
@@ -300,12 +300,11 @@ func doUpgrade(o upgradeOpts, h upgradeHooks) error {
 	if err := h.install(o.root, target); err != nil {
 		return err
 	}
-	if err := h.stack(o.root); err != nil {
+	if err := h.stack(o.root, newFiles); err != nil {
 		return fmt.Errorf("levantar la plataforma: %v (para volver: sudo guardianctl upgrade --rollback)", err)
 	}
-	code := h.doctor(o.root)
-	if code != 0 {
-		fmt.Fprintf(o.out, "doctor terminó con código %d: revisa los fallos; para volver: sudo guardianctl upgrade --rollback\n", code)
+	if code := h.doctor(o.root); code != 0 {
+		return fmt.Errorf("Guardian actualizado a %s, pero doctor terminó con código %d: revisa los fallos (sudo guardianctl doctor); para volver: sudo guardianctl upgrade --rollback", r.Tag, code)
 	}
 	fmt.Fprintf(o.out, "Guardian actualizado a %s.\n", r.Tag)
 	return nil
@@ -713,7 +712,7 @@ func doRollback(o upgradeOpts, h upgradeHooks) error {
 		}
 	}
 	// 2. Restaurar los archivos guardados.
-	n := 0
+	var restored []string
 	err = filepath.Walk(prev, func(p string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return err
@@ -722,17 +721,17 @@ func doRollback(o upgradeOpts, h upgradeHooks) error {
 		if rel == "META" || rel == "NEW_FILES" {
 			return nil
 		}
-		n++
+		restored = append(restored, filepath.ToSlash(rel))
 		return copyFile(p, filepath.Join(o.root, rel))
 	})
 	if err != nil {
 		return fmt.Errorf("restaurar archivos: %v", err)
 	}
-	fmt.Fprintf(o.out, "archivos restaurados: %d.\n", n)
+	fmt.Fprintf(o.out, "archivos restaurados: %d.\n", len(restored))
 	if err := h.install(o.root, prevVersion); err != nil {
 		return err
 	}
-	if err := h.stack(o.root); err != nil {
+	if err := h.stack(o.root, restored); err != nil {
 		return fmt.Errorf("levantar la plataforma: %v", err)
 	}
 	if code := h.doctor(o.root); code != 0 {
@@ -809,6 +808,12 @@ func installBinary(root, newVersion string) error {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("go build: %v\n%s", err, out)
 		}
+		return nil
+	}
+	// Instalación con git y sin Go (p. ej. al deshacer a una versión de desarrollo): se conserva el
+	// binario que hay, que es más reciente que el árbol y sabe operarlo.
+	if _, err := os.Stat(bin); err == nil {
+		fmt.Fprintf(os.Stderr, "AVISO: no hay bin/guardianctl-linux-%s en el árbol ni Go para compilar; se conserva el binario actual (%s).\n", runtime.GOARCH, bin)
 		return nil
 	}
 	return fmt.Errorf("no hay bin/guardianctl-linux-%s en el tarball ni Go para compilar", runtime.GOARCH)
@@ -904,8 +909,37 @@ func randomBase64(n int) string {
 	return sb.String()
 }
 
-// restartStack: como start_stack en install.sh (pull, up --build --remove-orphans, recarga de Caddy).
-func restartStack(root string) error {
+// Servicios cuya configuración va montada desde el repo: `up` no los recrea cuando solo cambia
+// el archivo, así que hay que reiniciarlos (Caddy se recarga en caliente).
+var mountedConfig = map[string]string{
+	"compose/vector/":  "vector",
+	"compose/grafana/": "grafana",
+	"compose/blocky/":  "blocky",
+	"compose/squid/":   "squid",
+	"compose/gateway/": "gateway",
+}
+
+// servicesToRestart devuelve, ordenados, los servicios afectados por los archivos cambiados.
+func servicesToRestart(changed []string) []string {
+	seen := map[string]bool{}
+	for _, rel := range changed {
+		for prefix, svc := range mountedConfig {
+			if strings.HasPrefix(rel, prefix) {
+				seen[svc] = true
+			}
+		}
+	}
+	var out []string
+	for svc := range seen {
+		out = append(out, svc)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// restartStack: como start_stack en install.sh (pull, up --build --remove-orphans, recarga de
+// Caddy) más el reinicio de los servicios cuya configuración montada cambió.
+func restartStack(root string, changed []string) error {
 	fmt.Println("levantando la plataforma…")
 	if _, err := run("docker", composeArgs(root, "pull", "--quiet", "--ignore-buildable")...); err != nil {
 		if _, err := run("docker", composeArgs(root, "pull", "--quiet")...); err != nil {
@@ -918,6 +952,12 @@ func restartStack(root string) error {
 		return err
 	}
 	run("docker", composeArgs(root, "exec", "-T", "caddy", "caddy", "reload", "--config", "/etc/caddy/Caddyfile")...)
+	if svcs := servicesToRestart(changed); len(svcs) > 0 {
+		fmt.Printf("reiniciando servicios con configuración nueva: %s…\n", strings.Join(svcs, ", "))
+		if _, err := run("docker", composeArgs(root, append([]string{"restart"}, svcs...)...)...); err != nil {
+			return fmt.Errorf("docker compose restart %s: %v", strings.Join(svcs, " "), err)
+		}
+	}
 	return nil
 }
 

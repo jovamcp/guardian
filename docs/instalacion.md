@@ -330,6 +330,10 @@ sudo make up        # arrancar
 sudo make doctor    # comprobaciones
 ```
 
+Ajustes locales del compose (GPU, variables de entorno, `OPENSSL_armcap=0` en VMs Apple Silicon…):
+escríbelos en `compose/local.yml` (ignorado por git). `make`, `install.sh` y `guardianctl` lo
+aplican siempre como último `-f`, y `upgrade` e `init` no lo tocan.
+
 Actualizar a un release nuevo (verifica firma y suma, copia previa, migraciones y rollback;
 detalles en [`docs/actualizacion.md`](actualizacion.md)):
 

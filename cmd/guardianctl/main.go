@@ -136,6 +136,10 @@ func composeArgs(root string, extra ...string) []string {
 			}
 		}
 	}
+	// Override del administrador (compose/local.yml, ignorado por git): lo mismo que hacen Makefile e install.sh.
+	if _, err := os.Stat(filepath.Join(root, "compose", "local.yml")); err == nil {
+		args = append(args, "-f", filepath.Join(root, "compose", "local.yml"))
+	}
 	return append(args, extra...)
 }
 

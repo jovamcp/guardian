@@ -174,9 +174,12 @@ func recordingHooks(c *calls, doctorCode int) upgradeHooks {
 	return upgradeHooks{
 		backup:  func(string) error { c.seq = append(c.seq, "backup"); return nil },
 		install: func(_ string, v string) error { c.seq = append(c.seq, "install:"+v); return nil },
-		stack:   func(string) error { c.seq = append(c.seq, "stack"); return nil },
-		doctor:  func(string) int { c.seq = append(c.seq, "doctor"); return doctorCode },
-		cosign:  func(string) error { c.seq = append(c.seq, "cosign"); return nil },
+		stack: func(_ string, changed []string) error {
+			c.seq = append(c.seq, fmt.Sprintf("stack(%s)", strings.Join(servicesToRestart(changed), "+")))
+			return nil
+		},
+		doctor: func(string) int { c.seq = append(c.seq, "doctor"); return doctorCode },
+		cosign: func(string) error { c.seq = append(c.seq, "cosign"); return nil },
 	}
 }
 
@@ -199,7 +202,8 @@ func TestUpgradeHappyPathAndRollback(t *testing.T) {
 	if err := doUpgrade(o, recordingHooks(&c, 0)); err != nil {
 		t.Fatalf("upgrade: %v\n%s", err, out.String())
 	}
-	want := []string{"cosign", "backup", "install:0.3.0", "stack", "doctor"}
+	// compose/gateway/config.yaml está protegido (queda como .new): no se reinicia el gateway.
+	want := []string{"cosign", "backup", "install:0.3.0", "stack()", "doctor"}
 	if strings.Join(c.seq, ",") != strings.Join(want, ",") {
 		t.Errorf("orden de acciones: %v, quería %v", c.seq, want)
 	}
@@ -253,7 +257,7 @@ func TestUpgradeHappyPathAndRollback(t *testing.T) {
 	if err := doRollback(o, recordingHooks(&c, 0)); err != nil {
 		t.Fatalf("rollback: %v\n%s", err, out.String())
 	}
-	if strings.Join(c.seq, ",") != "install:0.2.0,stack,doctor" {
+	if strings.Join(c.seq, ",") != "install:0.2.0,stack(gateway),doctor" {
 		t.Errorf("acciones del rollback: %v", c.seq)
 	}
 	back := map[string]string{
@@ -389,7 +393,7 @@ func TestUpgradeBackupFailureAborts(t *testing.T) {
 	if err := doUpgrade(upgradeOpts{root: root, yes: true, noBackup: true, out: &bytes.Buffer{}}, h); err != nil {
 		t.Fatalf("--no-backup: %v", err)
 	}
-	if strings.Join(c.seq, ",") != "cosign,install:0.3.0,stack,doctor" {
+	if strings.Join(c.seq, ",") != "cosign,install:0.3.0,stack(),doctor" {
 		t.Errorf("acciones: %v", c.seq)
 	}
 }
@@ -525,5 +529,28 @@ func TestRunMigrationsFromPreviousAndDoctorCheck(t *testing.T) {
 	fresh := t.TempDir()
 	if err := runMigrations(fresh, "0.4.0"); err != nil || readFile(t, filepath.Join(fresh, "compose", ".migrated")) != "0.4.0\n" {
 		t.Errorf("instalación nueva: %v", err)
+	}
+}
+
+func TestUpgradeDoctorFailureIsReported(t *testing.T) {
+	root := installedTree(t)
+	f := newFakeReleases(t, "v0.3.0", newTarball030(t), false)
+	releasesAPI = f.srv.URL + "/releases"
+	err := doUpgrade(upgradeOpts{root: root, yes: true, out: &bytes.Buffer{}}, recordingHooks(&calls{}, 1))
+	if err == nil || !strings.Contains(err.Error(), "doctor") || !strings.Contains(err.Error(), "actualizado") {
+		t.Errorf("doctor con fallos debe devolver error explicativo: %v", err)
+	}
+	if readFile(t, filepath.Join(root, "VERSION")) != "0.3.0\n" {
+		t.Error("la actualización sí se aplicó; VERSION debe ser la nueva")
+	}
+}
+
+func TestServicesToRestart(t *testing.T) {
+	got := strings.Join(servicesToRestart([]string{"compose/vector/vector.yaml", "compose/grafana/dashboards/x.json", "compose/docker-compose.yml", "docs/a.md", "compose/squid/agents.conf"}), ",")
+	if got != "grafana,squid,vector" {
+		t.Errorf("servicesToRestart = %q", got)
+	}
+	if len(servicesToRestart(nil)) != 0 {
+		t.Error("sin cambios → sin reinicios")
 	}
 }

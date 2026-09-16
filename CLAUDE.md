@@ -45,7 +45,7 @@ estado, Proxmox LXC). Antes de cada release: `make pin-images && make release`; 
 - Pocket ID 2.14.0 reinició periódicamente en las VMs ("host is not registered"), con y sin TZ y a la
   misma hora en ambas VMs del mismo anfitrión: probable salto de reloj de la VM. Vigilar en hardware real.
 - Pruebas en Apple Silicon (Lima/vz): Open WebUI muere con SIGILL en `cryptography`; usa
-  `OPENSSL_armcap=0` en un override fuera del repo. No afecta a x86-64.
+  `OPENSSL_armcap=0` en `compose/local.yml` (override del administrador, ignorado por git). No afecta a x86-64.
 
 ## Seguridad
 - `docs/seguridad.md` recoge el modelo de confianza, hallazgos corregidos y riesgos aceptados; actualízalo en cada release.
