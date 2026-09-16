@@ -17,6 +17,9 @@ Los ejemplos usan `DOMAIN=ai.home`. Sustitúyelo por el tuyo.
 
 ## 1. Requisitos
 
+> **Mac con chip Apple (M1–M4)**: Guardian corre en una VM Linux arm64; sigue primero
+> [`docs/apple-silicon.md`](apple-silicon.md) y vuelve aquí para el resto.
+
 | Qué | Detalle |
 |---|---|
 | Sistema | Debian 12 o Ubuntu 24.04 Server, recién instalados o sin Docker previo |

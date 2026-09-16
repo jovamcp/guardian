@@ -199,6 +199,21 @@ prepare_env() {
 	set +a
 }
 
+apple_silicon_override() {
+	# VMs de Apple Virtualization (Lima/UTM en Mac M-series): Open WebUI muere con SIGILL en
+	# cryptography/OpenSSL por la detección de SVE2. OPENSSL_armcap=0 lo evita (docs/apple-silicon.md).
+	local f="${COMPOSE_DIR}/local.yml"
+	if [[ "$(systemd-detect-virt 2>/dev/null || true)" == "apple" ]] && ! grep -qs "OPENSSL_armcap" "${f}"; then
+		if [[ -f "${f}" ]]; then
+			warn "VM de Apple Virtualization detectada: añade OPENSSL_armcap: '0' al servicio open-webui en ${f} (ver docs/apple-silicon.md)."
+		else
+			printf 'services:\n  open-webui:\n    environment:\n      OPENSSL_armcap: "0"\n' > "${f}"
+			log "VM de Apple Virtualization detectada: creado ${f} con OPENSSL_armcap=0 para Open WebUI."
+			load_extra_compose
+		fi
+	fi
+}
+
 export_caddy_ca() {
 	# Open WebUI monta compose/certs/root.crt, así que la CA debe existir ANTES de
 	# levantar el resto. Se levanta solo caddy, se espera a que genere su PKI y se copia.
@@ -315,6 +330,7 @@ main() {
 	run_init
 	[[ -n "${DOMAIN:-}" ]] || die "DOMAIN vacío en ${ENV_FILE}."
 	log "Dominio: ${DOMAIN}  (id.${DOMAIN}, api.${DOMAIN}, logs.${DOMAIN}, vpn.${DOMAIN})"
+	apple_silicon_override
 	export_caddy_ca
 	start_stack
 	install_gvisor

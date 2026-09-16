@@ -17,23 +17,25 @@ No sustituye el runtime ni el chat: los protege. Diseño completo en [`DESIGN.md
 
 ## Estado
 
-**v0.3.0 publicado; v0.4 en `main`** (`guardianctl upgrade` con releases firmados, migraciones y
-rollback; verificación y fijación de modelos de Ollama; manifiestos reales de Hermes Agent y
-OpenClaw), probado en VMs de Debian 12 y Ubuntu 24.04. Buscamos
+**v0.4.0 publicado** (`guardianctl upgrade` con releases firmados, migraciones y rollback;
+verificación y fijación de modelos de Ollama; manifiestos reales de Hermes Agent y OpenClaw),
+probado de extremo a extremo en Apple Silicon (VM Debian 12 arm64). Buscamos
 [beta testers](docs/beta.md) con hardware real. Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
 Ollama aislado, wg-easy 15, nftables con persistencia, gd-gateway con llaves virtuales en
 `api.<DOMAIN>`, red interna de agentes con Squid + Blocky por allowlist, sandbox
 (seccomp/AppArmor/uid 10000/solo lectura), vault con `age`, auditoría en `logs.<DOMAIN>` (Loki + Grafana con OIDC, alertas ntfy) y
 `guardianctl` (`init status doctor key policy agent secret backup upgrade migrate model`), `guardian.yaml`, políticas para
 FortiOS, OPNsense y UniFi, copias con restic, gVisor opcional, imágenes por digest y releases firmados con cosign. Pendiente de prueba en hardware real
-x86-64 y desde un móvil fuera de casa. Guías: [`docs/gateway.md`](docs/gateway.md), [`docs/agentes.md`](docs/agentes.md),
+x86-64 y desde un móvil fuera de casa. Guías: [`docs/apple-silicon.md`](docs/apple-silicon.md), [`docs/gateway.md`](docs/gateway.md), [`docs/agentes.md`](docs/agentes.md),
 [`docs/auditoria.md`](docs/auditoria.md), [`docs/actualizacion.md`](docs/actualizacion.md), [`docs/modelos.md`](docs/modelos.md),
 [`docs/proxmox-lxc.md`](docs/proxmox-lxc.md).
 Revisión de seguridad y riesgos aceptados: [`docs/seguridad.md`](docs/seguridad.md).
 
 ## Instalación rápida
 
-Requisitos: Debian 12 o Ubuntu 24.04, `sudo`, IP fija en la zona de IA.
+Requisitos: Debian 12 o Ubuntu 24.04 (arm64 o x86-64), `sudo`, IP fija en la zona de IA.
+**Mac con chip Apple**: Guardian corre en una VM Linux arm64; guía en [`docs/apple-silicon.md`](docs/apple-silicon.md).
+Es la plataforma en la que se ha probado v0.4; x86-64 está pendiente de prueba.
 
 ```bash
 # Release (recomendado): tarball + SHA256SUMS desde https://github.com/jovamcp/guardian/releases

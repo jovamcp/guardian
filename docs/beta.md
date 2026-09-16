@@ -8,7 +8,8 @@ interesa, pero eso es lo primero.
 ## Perfil
 
 - Mini-PC o servidor con **Debian 12** o **Ubuntu 24.04 Server** limpio (sin Docker previo), 8 GB
-  de RAM, IP fija.
+  de RAM, IP fija. **O un Mac con chip Apple** con una VM Linux arm64 (`docs/apple-silicon.md`):
+  es la plataforma de referencia de v0.4.
 - Un router o firewall en el que puedas crear una VLAN y reglas (FortiGate, OPNsense, UniFi,
   MikroTik…). Si no puedes, Guardian funciona igual dentro de tu LAN; solo pierdes la
   separación de zona.

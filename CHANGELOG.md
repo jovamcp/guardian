@@ -2,7 +2,11 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Versionado semántico.
 
-## [0.4.0] — sin publicar
+## [0.4.0] — 2026-09-16
+
+Plataforma de referencia: Apple Silicon (VM Linux arm64 con Lima) y ARM64 Linux; x86-64 pendiente
+de prueba. `docs/apple-silicon.md`. `install.sh` crea `compose/local.yml` con `OPENSSL_armcap=0`
+cuando detecta Apple Virtualization.
 
 ### Añadido
 - `guardianctl upgrade [--check | --dry-run] [--to vX.Y.Z] [--rollback]`: actualización a un release
