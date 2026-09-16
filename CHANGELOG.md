@@ -12,6 +12,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Vers
 - `internal/migrate` y `guardianctl migrate [--from X] [--dry-run | --mark]`: migraciones idempotentes
   por versión, registro en `compose/.migrated`, comprobación en `doctor`. Migración 0.3.0:
   `LITELLM_*` → `GATEWAY_MASTER_KEY`, `compose/litellm/` fuera, volúmenes huérfanos listados.
+- `guardianctl model list | verify [--report] | pin --all|<modelo> | unpin`: integridad de los blobs de
+  Ollama (SHA-256) y fijación del digest del manifiesto en `guardian.yaml` (`models:`). `doctor`
+  falla si un modelo fijado cambió o le faltan blobs y avisa de los no fijados; evento `model_check`
+  a Vector, panel en "Guardian · Estado" y alerta ntfy. `docs/modelos.md`.
 
 ### Cambiado
 - `make restart` reiniciaba el servicio `litellm` (inexistente desde v0.3); ahora `gateway`.

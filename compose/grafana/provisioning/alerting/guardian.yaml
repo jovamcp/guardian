@@ -143,6 +143,44 @@ groups:
               expression: B
               conditions:
                 - evaluator: {type: gt, params: [0]}
+      - uid: guardian-model-check
+        title: "Modelo de Ollama alterado o incompleto"
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+          source: guardianctl
+        annotations:
+          summary: "Un modelo fijado cambió de digest o tiene blobs corruptos o ausentes"
+          description: "guardianctl doctor o model verify han emitido model_check con status=fail. Revisa Guardian · Estado y ejecuta: sudo guardianctl model verify; si el cambio es legítimo, guardianctl model pin <modelo>."
+        data:
+          - refId: A
+            relativeTimeRange: {from: 3600, to: 0}
+            datasourceUid: guardian-loki
+            model:
+              refId: A
+              expr: 'sum(count_over_time({service="guardianctl", event="model_check"} | json | status="fail" [1h])) or vector(0)'
+              queryType: instant
+              instant: true
+              range: false
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              reducer: last
+              expression: A
+              settings: {mode: dropNN}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: {type: gt, params: [0]}
       - uid: guardian-firewall-forward
         title: "Tráfico descartado hacia servicios publicados"
         condition: C

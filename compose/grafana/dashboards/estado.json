@@ -312,6 +312,37 @@
     },
     "overrides": []
    }
+  },
+  {
+   "id": 1,
+   "type": "logs",
+   "title": "Modelos de Ollama: último model_check (doctor cada 15 min; model verify recalcula los blobs)",
+   "datasource": {
+    "type": "loki",
+    "uid": "guardian-loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 32,
+    "w": 24,
+    "h": 8
+   },
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "guardian-loki"
+     },
+     "expr": "{service=\"guardianctl\", event=\"model_check\"} | json | line_format \"{{.mode}} {{.status}} modelos={{.models}} blobs={{.blobs}} {{.problems}}\"",
+     "refId": "A",
+     "queryType": "range"
+    }
+   ]
   }
  ]
 }

@@ -60,3 +60,7 @@ backup:
     daily: 7
     weekly: 4
     monthly: 6
+
+# Modelos de Ollama fijados por digest del manifiesto (guardianctl model pin|unpin). doctor falla si
+# un modelo fijado cambia de contenido y avisa de los que no están fijados. Vacío = ninguno fijado.
+models: {}

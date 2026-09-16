@@ -35,7 +35,26 @@ sources:
     decoding:
       codec: json
 
+  # guardianctl doctor (comprobación de modelos) y model verify --report: eventos model_check.
+  model_checks:
+    type: http_server
+    address: 0.0.0.0:8689
+    path: /model
+    decoding:
+      codec: json
+
 transforms:
+  model_norm:
+    type: remap
+    inputs: [model_checks]
+    source: |
+      .service = "guardianctl"
+      .event = "model_check"
+      .message = "model_check " + string!(.mode) + " " + string!(.status) + " modelos=" + to_string!(.models) + " blobs=" + to_string!(.blobs)
+      del(.label)
+      del(.container_created_at)
+      del(.image)
+
   doctor_norm:
     type: remap
     inputs: [doctor_reports]
@@ -141,7 +160,7 @@ transforms:
 sinks:
   loki:
     type: loki
-    inputs: [containers_norm, kernel_norm, llm_norm, doctor_norm]
+    inputs: [containers_norm, kernel_norm, llm_norm, doctor_norm, model_norm]
     endpoint: http://loki:3100
     encoding:
       codec: json

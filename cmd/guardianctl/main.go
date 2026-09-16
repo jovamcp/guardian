@@ -62,6 +62,8 @@ func main() {
 		os.Exit(cmdAgent(os.Args[2:]))
 	case "secret":
 		os.Exit(cmdSecret(os.Args[2:]))
+	case "model":
+		os.Exit(cmdModel(os.Args[2:]))
 	case "migrate":
 		os.Exit(cmdMigrate(os.Args[2:]))
 	case "upgrade":
@@ -102,7 +104,9 @@ func usage() {
             restore [snapshot] --to <dir> | schedule apply|remove
   upgrade   actualiza a un release firmado: upgrade [--check | --dry-run] [--to vX.Y.Z] [--yes]
             [--no-backup] [--require-signature] | upgrade --rollback   (docs/actualizacion.md)
-  migrate   migraciones entre versiones: migrate [--from X.Y.Z] [--dry-run] | migrate --mark`)
+  migrate   migraciones entre versiones: migrate [--from X.Y.Z] [--dry-run] | migrate --mark
+  model     modelos de Ollama: model list | verify [--report] [<modelo>…] | pin --all|<modelo>… |
+            unpin <modelo>…   (integridad de blobs y digests fijados en guardian.yaml; docs/modelos.md)`)
 }
 
 // repoRoot localiza la raíz del repo: directorio actual o el del binario (bin/..).
@@ -213,6 +217,7 @@ func cmdDoctor(args []string) int {
 		{"entorno de ejecución (LXC de Proxmox: nesting, tun, wireguard, AppArmor)", checkContainerHost},
 		{"timers de systemd: el código que ejecutan pertenece a root", checkTimerOwnership},
 		{"migraciones entre versiones al día (" + migrate.StateFile + ")", checkMigrations},
+		{"modelos de Ollama: fijados sin cambios y blobs completos", checkModels},
 	}
 	host, _ := os.Hostname()
 	rep := doctorReport{Timestamp: time.Now().UTC().Format(time.RFC3339), Version: version, Host: host}

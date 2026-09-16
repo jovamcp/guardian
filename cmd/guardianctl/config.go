@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -48,6 +49,8 @@ type Config struct {
 	KeepDaily      int
 	KeepWeekly     int
 	KeepMonthly    int
+	// models (v0.4): nombre de modelo de Ollama → sha256:<hex> del manifiesto fijado (guardianctl model pin)
+	Models map[string]string
 }
 
 func defaultConfig() Config {
@@ -134,6 +137,12 @@ func loadConfig(root string) (Config, error) {
 	c.KeepDaily = num(keep["daily"], c.KeepDaily)
 	c.KeepWeekly = num(keep["weekly"], c.KeepWeekly)
 	c.KeepMonthly = num(keep["monthly"], c.KeepMonthly)
+	if mm := yamlmini.Map(doc["models"]); len(mm) > 0 {
+		c.Models = map[string]string{}
+		for k, v := range mm {
+			c.Models[k] = yamlmini.Str(v)
+		}
+	}
 	if c.AIGatewayIP == "" {
 		c.AIGatewayIP = firstHost(c.AICIDR)
 	}
@@ -141,6 +150,11 @@ func loadConfig(root string) (Config, error) {
 }
 
 func (c Config) validate() error {
+	for name, d := range c.Models {
+		if !modelDigestRe.MatchString(d) {
+			return fmt.Errorf("models.%q: %q no es sha256:<64 hex>", name, d)
+		}
+	}
 	if !regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`).MatchString(c.Domain) {
 		return fmt.Errorf("domain %q inválido (p. ej. ai.home)", c.Domain)
 	}
@@ -262,11 +276,32 @@ backup:
     daily: %d
     weekly: %d
     monthly: %d
+
+# Modelos de Ollama fijados por digest del manifiesto (guardianctl model pin|unpin; doctor avisa
+# si un modelo cambia o no está fijado). Vacío = ninguno fijado.
+models:%s
 `, c.Domain, c.TZ, c.LANCIDR, c.AIVLAN, c.AICIDR, c.AIHostIP, c.AIGatewayIP,
 		c.RemoteProv, c.RemoteCIDR, c.RemoteEndp, c.RuntimeKind, c.RuntimeGPU,
 		c.FWVendor, c.FWParent, c.FWLAN, c.FWWAN, c.FWWANIP, c.RetentionDays, c.NtfyURL, c.NtfyTopic,
 		c.TLSMode, c.DNSProvider, c.ACMEEmail,
-		c.BackupRepo, c.BackupPassword, c.BackupCron, c.BackupModels, c.KeepDaily, c.KeepWeekly, c.KeepMonthly)
+		c.BackupRepo, c.BackupPassword, c.BackupCron, c.BackupModels, c.KeepDaily, c.KeepWeekly, c.KeepMonthly, c.modelsYAML())
+}
+
+// modelsYAML: " {}" si no hay modelos; si no, una línea por modelo (clave entre comillas: lleva ":").
+func (c Config) modelsYAML() string {
+	if len(c.Models) == 0 {
+		return " {}"
+	}
+	names := make([]string, 0, len(c.Models))
+	for n := range c.Models {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	var sb strings.Builder
+	for _, n := range names {
+		fmt.Fprintf(&sb, "\n  %q: %s", n, c.Models[n])
+	}
+	return sb.String()
 }
 
 func saveConfig(root string, c Config) error {

@@ -14,6 +14,7 @@ Grafana y avisa al móvil cuando pasa algo que debes mirar.
 | `egress_allowed`, `egress_denied` | Squid | Decisión del proxy para cada `CONNECT` de un agente (IP del agente y destino) |
 | `dns_blocked`, `dns_resolved` | Blocky | Consultas DNS de los agentes y si se bloquearon |
 | `fw_drop_input`, `fw_drop_forward` | nftables (kernel) | Paquetes descartados hacia el host o hacia puertos publicados |
+| `model_check` | guardianctl | Resultado de la comprobación de modelos de Ollama (`doctor`: digests fijados y blobs presentes; `model verify`: SHA-256 de cada blob). `status` ok/warn/fail y lista `problems` |
 | `log` | todos | Cualquier otra línea de log de un contenedor `gd-*` |
 
 Cómo llega a Loki:
