@@ -304,7 +304,7 @@ func doUpgrade(o upgradeOpts, h upgradeHooks) error {
 		return fmt.Errorf("levantar la plataforma: %v (para volver: sudo guardianctl upgrade --rollback)", err)
 	}
 	if code := h.doctor(o.root); code != 0 {
-		return fmt.Errorf("Guardian actualizado a %s, pero doctor terminó con código %d: revisa los fallos (sudo guardianctl doctor); para volver: sudo guardianctl upgrade --rollback", r.Tag, code)
+		return fmt.Errorf("actualizado a %s, pero doctor terminó con código %d: revisa los fallos (sudo guardianctl doctor); para volver: sudo guardianctl upgrade --rollback", r.Tag, code)
 	}
 	fmt.Fprintf(o.out, "Guardian actualizado a %s.\n", r.Tag)
 	return nil
