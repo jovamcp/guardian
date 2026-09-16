@@ -2,7 +2,7 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Versionado semántico.
 
-## [0.3.0] — sin publicar
+## [0.3.0] — 2026-09-16
 
 ### Añadido
 - **gd-gateway**: gateway propio en Go (stdlib) compatible con OpenAI que sustituye a LiteLLM y

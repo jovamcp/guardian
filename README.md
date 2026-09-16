@@ -5,7 +5,7 @@ IA (Ollama, llama.cpp, vLLM; también sobre Umbrel o ZimaOS) y añade lo que nin
 
 - **Identidad**: login con OIDC y passkeys (Pocket ID).
 - **Acceso remoto** solo por WireGuard; ningún puerto de aplicación abierto a Internet.
-- **Zonificación** con nftables y plantillas para tu firewall (FortiOS; OPNsense y UniFi pendientes).
+- **Zonificación** con nftables y plantillas para tu firewall (FortiOS, OPNsense y UniFi).
 - **Gateway LLM propio** compatible con OpenAI (gd-gateway, Go) con llaves virtuales, varios nodos Ollama y
   cloud burst con presupuesto.
 - **Sandbox de agentes** con egreso controlado por allowlist por agente (Squid + Blocky), secretos
@@ -17,14 +17,14 @@ No sustituye el runtime ni el chat: los protege. Diseño completo en [`DESIGN.md
 
 ## Estado
 
-**v0.2.0 publicado; v0.3 en `main`** (gateway propio en Go que sustituye a LiteLLM y Postgres, multi-nodo,
+**v0.3.0 publicado** (gateway propio en Go que sustituye a LiteLLM y Postgres, multi-nodo,
 cloud burst controlado), probado en VMs de Debian 12 y Ubuntu 24.04. Buscamos
 [beta testers](docs/beta.md) con hardware real. Funciona: Caddy con TLS interno, Pocket ID (passkeys), Open WebUI con login OIDC,
 Ollama aislado, wg-easy 15, nftables con persistencia, gd-gateway con llaves virtuales en
 `api.<DOMAIN>`, red interna de agentes con Squid + Blocky por allowlist, sandbox
 (seccomp/AppArmor/uid 10000/solo lectura), vault con `age`, auditoría en `logs.<DOMAIN>` (Loki + Grafana con OIDC, alertas ntfy) y
 `guardianctl` (`init status doctor key policy agent secret`), `guardian.yaml`, políticas para
-FortiOS y OPNsense, imágenes por digest y releases con SHA-256. Aún no: UniFi, cosign, gVisor (v0.2). Pendiente de prueba en hardware real
+FortiOS, OPNsense y UniFi, copias con restic, gVisor opcional, imágenes por digest y releases firmados con cosign. Pendiente de prueba en hardware real
 x86-64 y desde un móvil fuera de casa. Guías: [`docs/gateway.md`](docs/gateway.md), [`docs/agentes.md`](docs/agentes.md),
 [`docs/auditoria.md`](docs/auditoria.md), [`docs/proxmox-lxc.md`](docs/proxmox-lxc.md).
 Revisión de seguridad y riesgos aceptados: [`docs/seguridad.md`](docs/seguridad.md).
