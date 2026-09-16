@@ -23,24 +23,17 @@ blocking:
     agent-hello-agent:
       - |
         /.*/
-    agent-openclaw:
-      - |
-        /.*/
   allowlists:
     agent-hello-agent:
       - |
         /^api\.github\.com$/
-    agent-openclaw:
-      - |
-        /^api\.github\.com$/
-        /^pypi\.org$/
-        /^files\.pythonhosted\.org$/
   clientGroupsBlock:
     default:
       - all
     172.28.30.153:
       - all
       - agent-hello-agent
+    172.28.30.201:
+      - all
     172.28.30.130:
       - all
-      - agent-openclaw
