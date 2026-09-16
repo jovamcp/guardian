@@ -37,7 +37,7 @@ quiere ejecutar agentes (OpenClaw, Hermes Agent, n8n) sin exponer su red ni sus 
 | Agente comprometido por prompt injection | Contenido malicioso hace que el agente ejecute acciones o filtre credenciales | Sandbox (no root, read-only, cap-drop ALL, seccomp, AppArmor), red `gd_agents` sin ruta por defecto, egreso por proxy con allowlist, llaves LLM virtuales con cuota |
 | Movimiento lateral a NAS / Home Assistant | Agente o runtime pivota a la LAN | Zona de IA en VLAN propia; política AI→LAN deny con log en el firewall; `gd_agents` es `internal` |
 | Exfiltración por HTTPS/DNS | Agente envía datos a un dominio arbitrario o codifica en consultas DNS | Squid con allowlist por agente (solo CONNECT a dominios permitidos), Blocky como único resolvedor, DNS directo bloqueado, todo registrado |
-| Supply chain de imágenes y modelos | Imagen o modelo manipulado | Imágenes por digest en releases; manifiestos con digest obligatorio; cosign y verificación de modelos en v0.2 |
+| Supply chain de imágenes y modelos | Imagen o modelo manipulado | Imágenes por digest en releases; manifiestos con digest obligatorio; releases firmados con cosign (v0.2); verificación y fijación de modelos con `guardianctl model` (v0.4) |
 | Acceso remoto por port-forwarding | Puertos de aplicación abiertos a Internet | Solo 51820/udp (WireGuard) expuesto; 443 restringido a LAN/AI/WG en DOCKER-USER y en el firewall |
 | Escalada en el host | Contenedor escapa o usa el socket de Docker | Agentes con userns-remap y sin socket Docker; plataforma con capacidades mínimas; regla de rescate SSH para no perder el host |
 
@@ -135,6 +135,7 @@ alerts: {ntfy: {url: "", topic: guardian}}
 3. `guardianctl init`: exporta la CA e imprime los siguientes pasos (Fase 1); genera `guardian.yaml` (Fase 4).
 4. `guardianctl policy render`: genera la política del firewall perimetral desde `policies/`.
 5. `guardianctl doctor`: verifica puertos, servicios, CA y aislamiento de Ollama.
+6. `guardianctl upgrade`: actualiza a un release firmado con copia previa, migraciones y rollback (v0.4).
 
 ## 8. Estructura del repo
 
@@ -165,6 +166,11 @@ Dashboard propio, gVisor para agentes, verificación con cosign, plantilla UniFi
 
 ### v0.3
 Gateway propio en Go (sustituye LiteLLM), multi-nodo, cloud burst controlado. **Hecho en v0.3.0.**
+
+### v0.4
+Operación y adopción: `guardianctl upgrade` (releases firmados, migraciones, rollback), verificación
+y fijación de modelos de Ollama, manifiestos reales probados (Hermes Agent, OpenClaw), primera
+prueba en x86-64, sin restos de LiteLLM. Plan: `docs/prompts/07-v0.4.md`.
 
 ## 10. Licencia y marca
 
@@ -222,6 +228,17 @@ Gateway propio en Go (sustituye LiteLLM), multi-nodo, cloud burst controlado. **
 - **Multi-nodo = varios upstreams por modelo** con salud, reparto y failover.
 - **Cloud burst** con upstreams `openai` marcados `cloud`, permiso por llave, presupuesto mensual y
   tabla de precios; alerta al 80 %.
+
+### Tomadas para v0.4
+
+- **`guardianctl upgrade` es la única ruta de actualización**: release firmado (SHA-256 en Go,
+  cosign si está), copia previa con restic, árbol anterior en `.previous/` para `--rollback`,
+  migraciones por versión en `internal/migrate`. Nunca `git pull` a ciegas ni borrado de volúmenes.
+- **Verificación de modelos = integridad + fijación**: `model verify` recalcula los blobs de Ollama;
+  `model pin` fija digests en `guardian.yaml` (`models:`); `doctor` avisa y emite `model_check`.
+- **Agentes reales** (Hermes Agent, OpenClaw) como manifiestos probados; `mode: service` solo si
+  alguno lo exige. n8n es cliente del gateway, no agente.
+- **x86-64 se prueba en máquina real o EC2**, nunca emulado.
 
 ### Abiertas
 

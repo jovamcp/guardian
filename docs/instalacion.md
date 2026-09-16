@@ -330,12 +330,14 @@ sudo make up        # arrancar
 sudo make doctor    # comprobaciones
 ```
 
-Actualizar imágenes (en desarrollo se usan tags; antes de un release irán por digest):
+Actualizar a un release nuevo (v0.4 traerá `guardianctl upgrade` con verificación de firma,
+copia previa, migraciones y rollback; hasta entonces, a mano):
 
 ```bash
-cd guardian && git pull
-sudo docker compose --env-file compose/.env -f compose/docker-compose.yml pull
-sudo make up
+# descarga y verifica el tarball nuevo como en la instalación; luego, desde el repo instalado:
+sudo make down && sudo tar -xzf guardian-<versión>.tar.gz --strip-components=1 -C /opt/guardian
+sudo ./install.sh   # reutiliza guardian.yaml y compose/.env; reconstruye la imagen del gateway
+sudo make doctor
 ```
 
 ### Copias de seguridad (restic)
@@ -351,8 +353,9 @@ sudo make up
    sudo ./bin/guardianctl backup schedule apply                       # a las 03:00 por defecto
    ```
 
-3. Se copian `guardian.yaml`, `compose/.env`, `vault/`, la CA, los manifiestos, un volcado de la
-   base de datos de LiteLLM y los volúmenes (Pocket ID, Open WebUI, WireGuard, Grafana, Loki…).
+3. Se copian `guardian.yaml`, `compose/.env`, `vault/`, la CA, los manifiestos, los datos del
+   gateway y los volúmenes (Pocket ID, Open WebUI, WireGuard, Grafana, Loki…); en instalaciones
+   anteriores a v0.3, también un volcado de la base de datos de LiteLLM.
    Los modelos de Ollama no, salvo `include_models: true` (pesan GB y se redescargan).
 4. Recuperar: `sudo ./bin/guardianctl backup restore --to /tmp/recuperado` y sigue los pasos que
    imprime. **Guarda la frase de restic y `vault/key.txt` fuera del host**: sin ellos no hay copia.

@@ -93,7 +93,7 @@ func cmdAgent(args []string) int {
 		switch {
 		case m.KeyMode == "auto":
 			if dry {
-				fmt.Println("# llm.key: auto → se crearía una llave virtual efímera en LiteLLM")
+				fmt.Println("# llm.key: auto → se crearía una llave virtual efímera en gd-gateway")
 				break
 			}
 			alias := fmt.Sprintf("%s-%d", m.Name, time.Now().Unix())

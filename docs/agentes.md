@@ -23,7 +23,7 @@ El sandbox (`sandbox/README.md`): uid `10000`, raíz de solo lectura, `cap-drop 
 name: mi-agente                       # minúsculas, dígitos y guiones
 image: ghcr.io/org/agente@sha256:…    # SIEMPRE por digest
 llm:
-  models: [qwen2.5:0.5b]              # nombres tal y como los tiene Ollama y config de LiteLLM
+  models: [qwen2.5:0.5b]              # nombres tal y como los tiene Ollama y compose/gateway/config.yaml
   key: auto                           # llave virtual efímera por ejecución (o vault:<ref>)
 egress:
   allow: [api.github.com, "*.pypi.org"]   # dominios exactos o comodín de subdominios

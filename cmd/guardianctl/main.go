@@ -82,7 +82,7 @@ func usage() {
             doctor --json | --report (envía el resultado a Vector → panel "Guardian · Estado")
             doctor schedule apply|remove (timer cada 15 min con --report)
   version   versión
-  key       llaves virtuales del gateway LiteLLM:
+  key       llaves virtuales de gd-gateway:
               key create --name <agente> --models m1,m2 [--rpm N] [--budget USD] [--cloud] [--duration 30d]
               key list | key delete <sk-...>
   policy    policy render egress    allowlists de Squid y Blocky desde agents/*.yaml
@@ -625,7 +625,7 @@ Siguientes pasos:
 `, domain, domain, domain, domain, domain, domain, wgHost, fw)
 }
 
-// ---------------------------------------------------------------- key (LiteLLM)
+// ---------------------------------------------------------------- key (gd-gateway)
 
 // apiClient devuelve un cliente HTTPS que habla con api.<DOMAIN> a través de Caddy en
 // 127.0.0.1:443, verificando con la CA interna. Es el mismo camino que usan las apps.
