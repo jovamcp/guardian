@@ -20,3 +20,4 @@ compose/.extra-files
 # guardianctl upgrade: versión anterior y descargas en curso
 .previous/
 .upgrade/
+compose/.migrated

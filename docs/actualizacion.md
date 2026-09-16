@@ -49,11 +49,32 @@ el doctor. Solo hay una versión anterior guardada: la de la última actualizaci
 ## Instalaciones con `git clone`
 
 `upgrade` funciona igual: escribe los archivos del release sobre el árbol (que quedará
-"modificado" para git). Si prefieres seguir con git, `git fetch --tags && git checkout vX.Y.Z` y
-después `sudo ./install.sh` hace lo mismo sin copia previa ni rollback.
+"modificado" para git). Si prefieres seguir con git, `git fetch --tags && git checkout vX.Y.Z`,
+`sudo ./bin/guardianctl migrate --from <versión anterior>` y `sudo ./install.sh` hacen lo mismo
+sin copia previa ni rollback.
 
 ## Ensayar contra un servidor propio
 
 `GUARDIAN_RELEASES_API=https://mi-servidor/releases` apunta a una API con el mismo formato que
 la de GitHub (`/latest`, `/tags/<tag>`, `assets[].browser_download_url`). Útil para probar un
 release candidato antes de publicarlo.
+
+## Migraciones entre versiones
+
+Algunos saltos necesitan adaptar la instalación además de copiar archivos. Esos pasos viven en
+`internal/migrate`, son idempotentes y `upgrade` los ejecuta en orden después de copiar el árbol
+nuevo. El registro de hasta qué versión se han aplicado está en `compose/.migrated` (fuera de lo
+que el tarball toca; `install.sh` y `guardianctl init` lo crean en instalaciones nuevas). El
+`doctor` falla si `VERSION` va por delante del registro con migraciones pendientes.
+
+| Introducida en | Qué hace |
+|---|---|
+| 0.3.0 | `GATEWAY_MASTER_KEY` toma el valor de `LITELLM_MASTER_KEY` si estaba vacía; retira las variables `LITELLM_*` de `compose/.env`; elimina `compose/litellm/`; lista los volúmenes de LiteLLM que ya no se usan (no los borra). |
+
+A mano (instalaciones actualizadas con git, o para reanudar una que falló):
+
+```bash
+sudo ./bin/guardianctl migrate --dry-run --from 0.2.0   # qué se aplicaría
+sudo ./bin/guardianctl migrate --from 0.2.0             # aplicar; después queda registrado
+sudo ./bin/guardianctl migrate --mark                    # la instalación ya está al día: solo registrar
+```

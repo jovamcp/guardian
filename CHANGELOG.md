@@ -9,6 +9,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/). Vers
   firmado (SHA-256 en Go, cosign si está), copia previa con restic, árbol anterior en `.previous/`,
   archivos del usuario y protegidos (`compose/gateway/config.yaml`, `nftables/*.nft` → `.new`)
   intactos, `.env` sincronizado con `.env.example`, `compose up` y `doctor`. `docs/actualizacion.md`.
+- `internal/migrate` y `guardianctl migrate [--from X] [--dry-run | --mark]`: migraciones idempotentes
+  por versión, registro en `compose/.migrated`, comprobación en `doctor`. Migración 0.3.0:
+  `LITELLM_*` → `GATEWAY_MASTER_KEY`, `compose/litellm/` fuera, volúmenes huérfanos listados.
 
 ### Cambiado
 - `make restart` reiniciaba el servicio `litellm` (inexistente desde v0.3); ahora `gateway`.

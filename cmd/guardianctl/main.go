@@ -20,6 +20,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/jovamcp/guardian/internal/migrate"
 )
 
 // version se fija en compilación: -ldflags "-X main.version=…" (Makefile lee VERSION).
@@ -60,6 +62,8 @@ func main() {
 		os.Exit(cmdAgent(os.Args[2:]))
 	case "secret":
 		os.Exit(cmdSecret(os.Args[2:]))
+	case "migrate":
+		os.Exit(cmdMigrate(os.Args[2:]))
 	case "upgrade":
 		os.Exit(cmdUpgrade(os.Args[2:]))
 	case "backup":
@@ -97,7 +101,8 @@ func usage() {
   backup    copias con restic (backup: en guardian.yaml): backup init | run | list |
             restore [snapshot] --to <dir> | schedule apply|remove
   upgrade   actualiza a un release firmado: upgrade [--check | --dry-run] [--to vX.Y.Z] [--yes]
-            [--no-backup] [--require-signature] | upgrade --rollback   (docs/actualizacion.md)`)
+            [--no-backup] [--require-signature] | upgrade --rollback   (docs/actualizacion.md)
+  migrate   migraciones entre versiones: migrate [--from X.Y.Z] [--dry-run] | migrate --mark`)
 }
 
 // repoRoot localiza la raíz del repo: directorio actual o el del binario (bin/..).
@@ -207,6 +212,7 @@ func cmdDoctor(args []string) int {
 		{"copias de seguridad configuradas y recientes", checkBackupFresh},
 		{"entorno de ejecución (LXC de Proxmox: nesting, tun, wireguard, AppArmor)", checkContainerHost},
 		{"timers de systemd: el código que ejecutan pertenece a root", checkTimerOwnership},
+		{"migraciones entre versiones al día (" + migrate.StateFile + ")", checkMigrations},
 	}
 	host, _ := os.Hostname()
 	rep := doctorReport{Timestamp: time.Now().UTC().Format(time.RFC3339), Version: version, Host: host}
@@ -549,6 +555,12 @@ func cmdInit(args []string) int {
 	if err := saveConfig(root, c); err != nil {
 		fmt.Fprintln(os.Stderr, "init:", err)
 		return 1
+	}
+	// Instalación nueva (sin registro de migraciones ni versión anterior): queda al día.
+	if migrationsFrom(root) == "" {
+		if err := migrate.WriteState(root, installedVersion(root)); err != nil {
+			fmt.Fprintln(os.Stderr, "init: registro de migraciones:", err)
+		}
 	}
 	fmt.Println("escrito", configPath(root))
 	if err := syncEnv(root, c); err != nil {

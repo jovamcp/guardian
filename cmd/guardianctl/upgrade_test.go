@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -186,25 +187,6 @@ func readFile(t *testing.T, p string) string {
 		return "<missing>"
 	}
 	return string(b)
-}
-
-func TestCompareVersions(t *testing.T) {
-	cases := []struct {
-		a, b string
-		want int
-	}{
-		{"0.2.0", "0.3.0", -1}, {"v0.3.0", "0.3.0", 0}, {"0.3.0-dev", "0.3.0", -1},
-		{"0.3.0", "0.3.0-dev", 1}, {"0.10.0", "0.9.9", 1}, {"1.0.0", "0.99.0", 1},
-	}
-	for _, c := range cases {
-		got, err := compareVersions(c.a, c.b)
-		if err != nil || got != c.want {
-			t.Errorf("compare(%s,%s) = %d, %v; want %d", c.a, c.b, got, err, c.want)
-		}
-	}
-	if _, err := compareVersions("abc", "0.1.0"); err == nil {
-		t.Error("se esperaba error con versión no semver")
-	}
 }
 
 func TestUpgradeHappyPathAndRollback(t *testing.T) {
@@ -490,5 +472,58 @@ func TestUpgradeDryRunTouchesNothing(t *testing.T) {
 	s := out.String()
 	if !strings.Contains(s, "protegido: compose/gateway/config.yaml") || !strings.Contains(s, "nuevo: new-only.txt") || !strings.Contains(s, "modificado: compose/docker-compose.yml") {
 		t.Errorf("informe del ensayo incompleto:\n%s", s)
+	}
+}
+
+func TestMigrationsFromResolution(t *testing.T) {
+	root := t.TempDir()
+	if got := migrationsFrom(root); got != "" {
+		t.Errorf("sin registro ni .previous: %q", got)
+	}
+	os.MkdirAll(filepath.Join(root, previousDir), 0o755)
+	os.WriteFile(filepath.Join(root, previousDir, "META"), []byte("version=0.2.0\ngit=abc\n"), 0o600)
+	if got := migrationsFrom(root); got != "0.2.0" {
+		t.Errorf("desde .previous/META: %q", got)
+	}
+	os.MkdirAll(filepath.Join(root, "compose"), 0o755)
+	os.WriteFile(filepath.Join(root, "compose", ".migrated"), []byte("0.3.0\n"), 0o644)
+	if got := migrationsFrom(root); got != "0.3.0" {
+		t.Errorf("el registro manda: %q", got)
+	}
+}
+
+func TestRunMigrationsFromPreviousAndDoctorCheck(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "compose", "litellm"), 0o755)
+	os.WriteFile(filepath.Join(root, "compose", ".env"), []byte("LITELLM_MASTER_KEY=sk-1234567890abcdef1234\n"), 0o600)
+	os.WriteFile(filepath.Join(root, "VERSION"), []byte("0.4.0\n"), 0o644)
+	os.MkdirAll(filepath.Join(root, previousDir), 0o755)
+	os.WriteFile(filepath.Join(root, previousDir, "META"), []byte("version=0.2.0\n"), 0o600)
+	if err := checkMigrations(root); err == nil || !errors.As(err, new(errWarn)) {
+		t.Errorf("sin registro debería avisar: %v", err)
+	}
+	if err := runMigrations(root, "0.4.0"); err != nil {
+		t.Fatal(err)
+	}
+	env := readFile(t, filepath.Join(root, "compose", ".env"))
+	if env != "GATEWAY_MASTER_KEY=sk-1234567890abcdef1234\n" {
+		t.Errorf(".env tras migrar: %q", env)
+	}
+	if readFile(t, filepath.Join(root, "compose", ".migrated")) != "0.4.0\n" {
+		t.Error("registro no actualizado")
+	}
+	if err := checkMigrations(root); err != nil {
+		t.Errorf("al día: %v", err)
+	}
+	// VERSION avanza a una versión con migración pendiente → fallo (no aviso).
+	os.WriteFile(filepath.Join(root, "compose", ".migrated"), []byte("0.2.0\n"), 0o644)
+	if err := checkMigrations(root); err == nil || errors.As(err, new(errWarn)) {
+		t.Errorf("pendientes debería fallar: %v", err)
+	}
+	// Instalación nueva: sin registro ni .previous → runMigrations solo registra.
+	fresh := t.TempDir()
+	if err := runMigrations(fresh, "0.4.0"); err != nil || readFile(t, filepath.Join(fresh, "compose", ".migrated")) != "0.4.0\n" {
+		t.Errorf("instalación nueva: %v", err)
 	}
 }

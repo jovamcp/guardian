@@ -26,9 +26,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jovamcp/guardian/internal/semver"
 )
 
 const (
@@ -150,54 +151,6 @@ func installedVersion(root string) string {
 	return strings.TrimSpace(string(raw))
 }
 
-// semver: [major, minor, patch, pre]; "0.3.0-dev" < "0.3.0".
-func parseSemver(v string) ([3]int, string, error) {
-	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
-	core, pre, _ := strings.Cut(v, "-")
-	parts := strings.Split(core, ".")
-	if len(parts) != 3 {
-		return [3]int{}, "", fmt.Errorf("versión no válida: %q", v)
-	}
-	var n [3]int
-	for i, p := range parts {
-		x, err := strconv.Atoi(p)
-		if err != nil || x < 0 {
-			return [3]int{}, "", fmt.Errorf("versión no válida: %q", v)
-		}
-		n[i] = x
-	}
-	return n, pre, nil
-}
-
-// compareVersions devuelve -1, 0 o 1. Con error si alguna no es semver.
-func compareVersions(a, b string) (int, error) {
-	na, pa, err := parseSemver(a)
-	if err != nil {
-		return 0, err
-	}
-	nb, pb, err := parseSemver(b)
-	if err != nil {
-		return 0, err
-	}
-	for i := 0; i < 3; i++ {
-		if na[i] != nb[i] {
-			if na[i] < nb[i] {
-				return -1, nil
-			}
-			return 1, nil
-		}
-	}
-	switch {
-	case pa == pb:
-		return 0, nil
-	case pa == "":
-		return 1, nil // 0.3.0 > 0.3.0-dev
-	case pb == "":
-		return -1, nil
-	}
-	return strings.Compare(pa, pb), nil
-}
-
 func fetchRelease(tag string) (release, error) {
 	url := releasesAPI + "/latest"
 	if tag != "" {
@@ -222,7 +175,7 @@ func fetchRelease(tag string) (release, error) {
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&r); err != nil {
 		return release{}, fmt.Errorf("respuesta de GitHub ilegible: %v", err)
 	}
-	if _, _, err := parseSemver(r.Tag); err != nil {
+	if _, _, err := semver.Parse(r.Tag); err != nil {
 		return release{}, err
 	}
 	return r, nil
@@ -234,7 +187,7 @@ func doCheck(o upgradeOpts) error {
 	if err != nil {
 		return err
 	}
-	cmp, err := compareVersions(cur, r.Tag)
+	cmp, err := semver.Compare(cur, r.Tag)
 	if err != nil {
 		return err
 	}
@@ -264,7 +217,7 @@ func doUpgrade(o upgradeOpts, h upgradeHooks) error {
 		return err
 	}
 	target := strings.TrimPrefix(r.Tag, "v")
-	cmp, err := compareVersions(cur, r.Tag)
+	cmp, err := semver.Compare(cur, r.Tag)
 	if err != nil {
 		return err
 	}
@@ -813,18 +766,19 @@ func preUpgradeBackup(root string) error {
 	return nil
 }
 
-// postSwapInstall deja el binario de la versión nueva en bin/guardianctl, sincroniza
-// compose/.env (variables nuevas y secretos que falten, como hace install.sh) y ejecuta las
-// migraciones pendientes (internal/migrate, tarea 3).
+// postSwapInstall deja el binario de la versión nueva en bin/guardianctl, ejecuta las migraciones
+// pendientes (internal/migrate) y sincroniza compose/.env (variables nuevas y secretos que
+// falten, como hace install.sh).
 func postSwapInstall(root, newVersion string) error {
 	if err := installBinary(root, newVersion); err != nil {
 		return fmt.Errorf("binario: %v", err)
 	}
-	if err := ensureEnv(root, newVersion); err != nil {
-		return fmt.Errorf("compose/.env: %v", err)
-	}
+	// Migraciones antes de sincronizar .env: la 0.3.0 reaprovecha LITELLM_MASTER_KEY si existe.
 	if err := runMigrations(root, newVersion); err != nil {
 		return fmt.Errorf("migraciones: %v", err)
+	}
+	if err := ensureEnv(root, newVersion); err != nil {
+		return fmt.Errorf("compose/.env: %v", err)
 	}
 	// init --yes con el binario nuevo: sincroniza .env y los define de nftables con guardian.yaml.
 	if _, err := os.Stat(filepath.Join(root, "guardian.yaml")); err == nil {
@@ -834,9 +788,6 @@ func postSwapInstall(root, newVersion string) error {
 	}
 	return nil
 }
-
-// runMigrations: punto de enganche de internal/migrate (tarea 3). Por ahora no hay migraciones.
-func runMigrations(root, newVersion string) error { return nil }
 
 // installBinary: bin/guardianctl-linux-<arch> del tarball (ya verificado por SHA256SUMS del
 // release, que cubre el tarball entero) o compilación local si hay Go ≥ 1.22.
